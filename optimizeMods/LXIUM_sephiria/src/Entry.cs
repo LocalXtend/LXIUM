@@ -10,9 +10,11 @@ namespace LXIUM_sephiria
 
         protected override void OnModLoaded()
         {
+            var config = Config.Load();
             _host = new GameObject("LXIUM_sephiria");
             Object.DontDestroyOnLoad(_host);
-            _host.AddComponent<Diagnostics>();
+            if (config.diagnostics) _host.AddComponent<Diagnostics>();
+            if (config.sendMoneyScanFix) _host.AddComponent<SendMoneyScanFix>();
         }
 
         protected override void OnModUnloaded()

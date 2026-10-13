@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "LXIUM_sephiria",
   "name": "LXIUM Sephiria",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "세피리아 최적화 (게임 내장 AddOns 로더 사용)",
   "game": {
     "id": "sephiria",

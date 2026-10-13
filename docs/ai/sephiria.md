@@ -226,10 +226,17 @@ URP 에셋 (`UniversalRenderPipelineAsset`) [관찰]
 1. 설치 위치 `AddOns/LXIUM_sephiria/`. `metadata.json`에는 3장의 공식 필드 5개만 씀. `entryClass`는 전체 이름을 정확히
 2. 진입 클래스(`HorayModBase` 상속)의 필드·시그니처에 Harmony 타입을 쓰지 않음. `OnModLoaded`에서 의존 DLL 해결을 먼저 하고, Harmony를 쓰는 코드는 별도 클래스로 분리
 3. 매 프레임 동작이 필요하면 `OnModLoaded`에서 `DontDestroyOnLoad` GameObject + MonoBehaviour를 만듦 (`HorayModBase`는 MonoBehaviour가 아님)
-4. 최적화 우선순위: ① Unity 설정 API(URP 에셋, Light2D, Volume, 파티클 on/off) ② 프로파일링으로 확인된 핫스팟만 Harmony 패치
+4. 최적화는 측정으로 확인된 병목만 다룸. 개발 PC 측정상 GPU 병목이 아니므로(8장) Unity 그래픽 설정 변경은 후순위. 코드 패치는 필드·설정 변경으로 안 될 때만 Harmony 사용
 5. 다른 모드의 로드 순서나 패치를 전제하지 않음
-6. 로그 접두사 `[LXIUM]`. 출력은 Unity 로그(`Player.log`)
-7. 사용자 설정 파일은 모드가 실행 중 생성 (`docs/ai/addon.md` 5장)
+6. 로그 접두사 `[LXIUM]`. 출력은 Unity 로그(`Player.log`), 진단은 모드 폴더 `LXIUM_diag.log`에도 기록
+7. 설정은 모드 폴더 `config.json`. 없으면 실행 중 기본값으로 생성 (`docs/ai/addon.md` 5장). 키: `diagnostics`, `sendMoneyScanFix` (기본 모두 true)
+8. 다른 모드 호환 패치 규칙
+   - 대상 모드 이름·버전이 정확히 일치할 때만 적용 (`AddOnLoader.LoadedMods`의 `modName`, `modVersion`)
+   - 필요한 타입·필드·속성을 리플렉션으로 확인하고 하나라도 다르면 적용하지 않고 로그만 남김
+   - 판단에 필요한 게임 상태를 얻지 못하면 대상 모드의 원래 동작을 그대로 둠
+   - 대상 모드의 기능은 유지하고 낭비만 막음. 기능을 대신 구현하지 않음
+   - `config.json` 키로 끌 수 있어야 함
+   - 현재 적용: SendMoney 1.0.1 (`src/SendMoneyScanFix.cs`). 채팅창이 UI 목록에 있고 비활성인 동안 `SendMoneyModRunner.scanTimer`를 매 프레임 0으로 되돌려 `FindObjectOfType` 검색을 막음. 채팅창이 열리면 손대지 않아 SendMoney가 원래대로 연결함
 
 ## 11. 분석 방법
 
