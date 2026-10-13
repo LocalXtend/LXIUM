@@ -18,7 +18,6 @@
     <Reference Include="Assembly-CSharp" HintPath="$(ManagedDir)\Assembly-CSharp.dll" Private="false" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
     <Reference Include="UnityEngine.ParticleSystemModule" HintPath="$(ManagedDir)\UnityEngine.ParticleSystemModule.dll" Private="false" />
-    <Reference Include="Unity.InputSystem" HintPath="$(ManagedDir)\Unity.InputSystem.dll" Private="false" />
     <Reference Include="Unity.RenderPipelines.Core.Runtime" HintPath="$(ManagedDir)\Unity.RenderPipelines.Core.Runtime.dll" Private="false" />
     <Reference Include="Unity.RenderPipelines.Universal.Runtime" HintPath="$(ManagedDir)\Unity.RenderPipelines.Universal.Runtime.dll" Private="false" />
     <Reference Include="Unity.RenderPipelines.Universal.2D.Runtime" HintPath="$(ManagedDir)\Unity.RenderPipelines.Universal.2D.Runtime.dll" Private="false" />

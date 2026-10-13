@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Text;
 using Unity.Profiling;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
@@ -14,16 +13,14 @@ namespace LXIUM_sephiria
     // 렌더 설정과 프레임 통계를 Player.log에 남기는 진단 기능.
     // - 시작 시: 실행 환경, URP 에셋과 렌더러 데이터의 직렬화 값
     // - 씬 로드 3초 후: 카메라 구성, 2D 라이트·파티클·볼륨 개수
-    // - 10초마다: FPS, 프레임 시간 분포, 끊김 프레임 수와 그중 GC가 돈 프레임 수, 드로우 콜, 관리 힙 크기
-    // - F9: URP renderScale을 원래 값 ↔ 0.5로 전환. GPU 병목이면 0.5에서 프레임이 크게 오른다.
-    //   에셋을 런타임에만 바꾸므로 게임을 다시 켜면 원래 값으로 돌아간다.
+    // - 10초마다: FPS, 프레임 시간 분포, 끊김 프레임 수·간격, 그중 GC가 돈 프레임 수, 드로우 콜, 관리 힙 크기
     // 이 게임 빌드는 FrameTimingManager(CPU/GPU 시간)와 GC 할당 카운터를 제공하지 않아 쓰지 않는다.
+    // 단축키는 두지 않는다. 다른 모드(CustomSkin 등)가 F키를 설정 가능한 단축키로 쓴다.
     sealed class Diagnostics : MonoBehaviour
     {
         const string Tag = "[LXIUM] ";
         const float ReportSeconds = 10f;
         const float HitchSeconds = 0.025f;
-        const float TestScale = 0.5f;
 
         readonly float[] _frameTimes = new float[16384];
         readonly float[] _sorted = new float[16384];
@@ -31,11 +28,13 @@ namespace LXIUM_sephiria
         float _elapsed;
         int _hitches, _hitchesWithGc, _gcRuns, _lastGcCount;
 
+        // 끊김 사이 간격. 일정하면 타이머로 도는 작업이 원인
+        readonly float[] _hitchGaps = new float[1024];
+        int _gapCount;
+        float _lastHitchAt = -1f;
+
         ProfilerRecorder _setPass, _drawCalls, _batches;
         long _setPassSum, _drawCallsSum, _batchesSum;
-
-        bool _f9WasDown;
-        float _originalScale = -1f;
 
         void Start()
         {
@@ -55,7 +54,6 @@ namespace LXIUM_sephiria
             _setPass.Dispose();
             _drawCalls.Dispose();
             _batches.Dispose();
-            if (_originalScale >= 0f && Asset() is UniversalRenderPipelineAsset urp) urp.renderScale = _originalScale;
         }
 
         void Update()
@@ -73,6 +71,9 @@ namespace LXIUM_sephiria
             {
                 _hitches++;
                 if (gcRan) _hitchesWithGc++;
+                float now = Time.realtimeSinceStartup;
+                if (_lastHitchAt >= 0f && _gapCount < _hitchGaps.Length) _hitchGaps[_gapCount++] = now - _lastHitchAt;
+                _lastHitchAt = now;
             }
 
             // 직전 프레임 값이 들어 있으므로 매 프레임 누적해 평균을 낸다
@@ -80,14 +81,7 @@ namespace LXIUM_sephiria
             _drawCallsSum += _drawCalls.LastValue;
             _batchesSum += _batches.LastValue;
 
-            // 게임의 Input System 갱신 방식과 무관하도록 눌림 상태 변화를 직접 비교한다
-            var kb = Keyboard.current;
-            bool f9Down = kb != null && kb.f9Key.isPressed;
-            bool f9Pressed = f9Down && !_f9WasDown;
-            _f9WasDown = f9Down;
-
-            if (f9Pressed) ToggleRenderScale();
-            else if (_elapsed >= ReportSeconds) Report();
+            if (_elapsed >= ReportSeconds) Report();
         }
 
         void Report()
@@ -103,7 +97,15 @@ namespace LXIUM_sephiria
             sb.Append(" fps=").Append((_frames / _elapsed).ToString("0.0"));
             sb.Append(" ms(p50/p95/p99/max)=").Append(Pct(0.5f).ToString("0.0")).Append('/').Append(Pct(0.95f).ToString("0.0"))
               .Append('/').Append(Pct(0.99f).ToString("0.0")).Append('/').Append((_sorted[_frames - 1] * 1000f).ToString("0.0"));
-            sb.Append(" hitches>25ms=").Append(_hitches).Append(" withGC=").Append(_hitchesWithGc).Append(" gcRuns=").Append(_gcRuns)
+            sb.Append(" hitches>25ms=").Append(_hitches);
+            if (_gapCount > 0)
+            {
+                Array.Sort(_hitchGaps, 0, _gapCount);
+                sb.Append(" gapSec(p25/p50/p75)=").Append(_hitchGaps[_gapCount / 4].ToString("0.00"))
+                  .Append('/').Append(_hitchGaps[_gapCount / 2].ToString("0.00"))
+                  .Append('/').Append(_hitchGaps[_gapCount * 3 / 4].ToString("0.00"));
+            }
+            sb.Append(" withGC=").Append(_hitchesWithGc).Append(" gcRuns=").Append(_gcRuns)
               .Append(" heapMB=").Append((GC.GetTotalMemory(false) / 1048576f).ToString("0"));
             sb.Append(" setpass=").Append(_setPassSum / _frames)
               .Append(" draws=").Append(_drawCallsSum / _frames)
@@ -112,21 +114,8 @@ namespace LXIUM_sephiria
 
             _frames = 0;
             _elapsed = 0f;
-            _hitches = _hitchesWithGc = _gcRuns = 0;
+            _hitches = _hitchesWithGc = _gcRuns = _gapCount = 0;
             _setPassSum = _drawCallsSum = _batchesSum = 0;
-        }
-
-        void ToggleRenderScale()
-        {
-            Report();
-            if (!(Asset() is UniversalRenderPipelineAsset urp))
-            {
-                Debug.Log(Tag + "renderScale: 활성 파이프라인이 URP가 아님");
-                return;
-            }
-            if (_originalScale < 0f) _originalScale = urp.renderScale;
-            urp.renderScale = Mathf.Approximately(urp.renderScale, _originalScale) ? TestScale : _originalScale;
-            Debug.Log(Tag + "renderScale -> " + urp.renderScale.ToString("0.##"));
         }
 
         static RenderPipelineAsset Asset() => GraphicsSettings.currentRenderPipeline;
@@ -144,8 +133,7 @@ namespace LXIUM_sephiria
                 + " vsync=" + QualitySettings.vSyncCount
                 + " targetFps=" + Application.targetFrameRate
                 + " quality=" + QualitySettings.names[QualitySettings.GetQualityLevel()] + "(" + QualitySettings.GetQualityLevel() + "/" + QualitySettings.names.Length + ")"
-                + " frameTiming=" + FrameTimingManager.IsFeatureEnabled()
-                + " input=" + (Keyboard.current != null ? InputSystem.settings.updateMode.ToString() : "noKeyboard"));
+                + " frameTiming=" + FrameTimingManager.IsFeatureEnabled());
         }
 
         static void LogPipeline()
