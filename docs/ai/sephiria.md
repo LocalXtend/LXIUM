@@ -101,7 +101,7 @@
 | URP 에셋 값 | 8장 참고 [관찰: 진단 모드] |
 | CPU/GPU 병목 | 개발 PC 기준 CPU 쪽 (8장). 이 빌드는 `FrameTimingManager`가 꺼져 있어 CPU/GPU 시간을 직접 못 읽고 renderScale A/B로 판별함 |
 
-## 8. 실행 중 측정 (진단 모드 0.1.0~0.1.3, 1~5차)
+## 8. 실행 중 측정 (LXIUM 0.1.0~0.2.0, 1~6차)
 
 `LXIUM_sephiria`의 진단 기능(`src/Diagnostics.cs`)으로 읽은 값. 개발 PC는 내장 GPU 노트북, 창 모드 약 1440×1000.
 
@@ -211,6 +211,18 @@ URP 에셋 (`UniversalRenderPipelineAsset`) [관찰]
 - `FindObjectOfType` 1회 비용은 개발 PC·게임 월드(오브젝트 약 36만 개)에서 약 20~25ms [추론: p99 − p50]
 - 사용자가 채팅창을 열었다 닫는 절차 후에도 끊김이 계속됐고 연결 성공 로그가 없음 [관찰]. 채팅을 연 시간이 0.5초 미만이었는지, 열어도 못 찾는지 [미확인]
 - 게임의 채팅창 열기 경로: `PlayerInputController.HandleChat` → `UIManager.GetElement<UI_ChatInput>()` → `UI_ChatInput.Chat()` → `UIBase.Open` [관찰]
+- `UIBase.Open/Close`는 자기 GameObject를 `SetActive(true/false)`, `UIManager.GetElement<T>()`는 타입 이름으로 Hashtable 조회만 함 (부작용 없음) [관찰: 정적]
+
+6차 측정 (LXIUM 0.2.0 + SendMoney, `SendMoneyScanFix` 적용) [관찰]
+
+| 항목 | 패치 전 (5차) | 패치 후 |
+|---|---|---|
+| 25ms 넘는 프레임 (10초당) | 18~22, 0.5초 간격 | 대부분 0, 로딩 구간만 |
+| p99 | 25~28ms | 7~14ms |
+| 평균 FPS | 155~185 | 132~199 (장면에 따라) |
+
+- 채팅창을 연 뒤 `[SendMoneyMod] UI_ChatInput 바인딩 완료.` 로그 확인. 채팅으로 `/플레이어목록` 전송까지 확인 [관찰]. 명령 결과 표시는 로그에 남지 않아 [미확인]
+- 0.2.0의 재진입 중복 호스트 때문에 진단 줄이 두 번씩 기록됨 [관찰] → 0.2.1에서 수정
 - 원인 제거 방법(모드 쪽): 게임의 `UIManager.GetElement<UI_ChatInput>()` 사용, 또는 `UI_ChatInput.OnOpened`에서 연결, 또는 비활성 포함 검색을 한 번만 수행
 - `Player.log`는 실행마다 덮어써지고 `Player-prev.log`도 갱신되지 않을 수 있음 [관찰]. 진단 0.1.3부터 모드 폴더의 `LXIUM_diag.log`에 세션별(로드된 모드 목록 포함)로 이어 씀
 - 다른 모드의 단축키: CustomSkin은 F7·F9(설정 가능, `Keyboard[Key]` 인덱서로 읽음), Mira's Item Mod는 F1~F3, QoL은 PageUp/PageDown·방향키·Tab·Enter·Alt 사용 [관찰]. 키 이름 속성(`get_f9Key`)만 검색하면 인덱서 사용을 놓침. LXIUM은 기본 단축키를 두지 않음
