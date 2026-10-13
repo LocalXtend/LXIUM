@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using Unity.Profiling;
@@ -11,6 +13,7 @@ using UnityEngine.SceneManagement;
 namespace LXIUM_sephiria
 {
     // 렌더 설정과 프레임 통계를 Player.log에 남기는 진단 기능.
+    // 출력: Player.log와 모드 폴더의 LXIUM_diag.log (세션마다 로드된 모드 목록부터 기록)
     // - 시작 시: 실행 환경, URP 에셋과 렌더러 데이터의 직렬화 값
     // - 씬 로드 3초 후: 카메라 구성, 2D 라이트·파티클·볼륨 개수
     // - 10초마다: FPS, 프레임 시간 분포, 끊김 프레임 수·간격, 그중 GC가 돈 프레임 수, 드로우 콜, 관리 힙 크기
@@ -43,6 +46,9 @@ namespace LXIUM_sephiria
             _batches = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");
             _lastGcCount = GC.CollectionCount(0);
 
+            // Start는 AddOnLoader.LoadAll이 끝난 뒤 첫 프레임에 불리므로 모든 모드가 목록에 있다
+            if (File.Exists(LogPath) && new FileInfo(LogPath).Length > MaxLogBytes) File.Delete(LogPath);
+            Write(Tag + "session mods=" + string.Join(", ", AddOnLoader.LoadedMods.Select(m => m.Metadata.modName + " " + m.Metadata.modVersion)));
             LogEnvironment();
             LogPipeline();
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -110,7 +116,7 @@ namespace LXIUM_sephiria
             sb.Append(" setpass=").Append(_setPassSum / _frames)
               .Append(" draws=").Append(_drawCallsSum / _frames)
               .Append(" batches=").Append(_batchesSum / _frames);
-            Debug.Log(sb.ToString());
+            Write(sb.ToString());
 
             _frames = 0;
             _elapsed = 0f;
@@ -120,10 +126,22 @@ namespace LXIUM_sephiria
 
         static RenderPipelineAsset Asset() => GraphicsSettings.currentRenderPipeline;
 
+        // Player.log는 실행할 때마다 덮어써지므로 모드 폴더의 파일에 세션을 이어 쓴다
+        static readonly string LogPath = Path.Combine(Path.GetDirectoryName(typeof(Diagnostics).Assembly.Location), "LXIUM_diag.log");
+        const long MaxLogBytes = 5 * 1024 * 1024;
+
+        static void Write(string line)
+        {
+            Debug.Log(line);
+            try { File.AppendAllText(LogPath, DateTime.Now.ToString("MM-dd HH:mm:ss ") + line + "\n"); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
         static void LogEnvironment()
         {
             var r = Screen.currentResolution;
-            Debug.Log(Tag + "env"
+            Write(Tag + "env"
                 + " game=" + Application.version
                 + " unity=" + Application.unityVersion
                 + " gfx=" + SystemInfo.graphicsDeviceType + " (" + SystemInfo.graphicsDeviceName + ", " + SystemInfo.graphicsMemorySize + "MB)"
@@ -141,17 +159,17 @@ namespace LXIUM_sephiria
             var asset = Asset();
             if (asset == null)
             {
-                Debug.Log(Tag + "pipeline: 없음 (Built-in)");
+                Write(Tag + "pipeline: 없음 (Built-in)");
                 return;
             }
-            Debug.Log(Tag + "pipeline " + asset.GetType().Name + " '" + asset.name + "' " + Fields(asset));
+            Write(Tag + "pipeline " + asset.GetType().Name + " '" + asset.name + "' " + Fields(asset));
 
             // 렌더러 데이터 목록은 공개 API가 없어 직렬화 필드를 읽는다
             var list = typeof(UniversalRenderPipelineAsset).GetField("m_RendererDataList", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(asset) as ScriptableRendererData[];
             if (list == null) return;
             for (int i = 0; i < list.Length; i++)
                 if (list[i] != null)
-                    Debug.Log(Tag + "renderer[" + i + "] " + list[i].GetType().Name + " '" + list[i].name + "' " + Fields(list[i]));
+                    Write(Tag + "renderer[" + i + "] " + list[i].GetType().Name + " '" + list[i].name + "' " + Fields(list[i]));
         }
 
         void OnSceneLoaded(Scene scene, LoadSceneMode mode) => StartCoroutine(LogSceneLater(scene.name));
@@ -165,7 +183,7 @@ namespace LXIUM_sephiria
                 var data = cam.GetUniversalAdditionalCameraData();
                 var comps = new StringBuilder();
                 foreach (var c in cam.GetComponents<Component>()) comps.Append(c.GetType().Name).Append(',');
-                Debug.Log(Tag + "camera scene=" + sceneName + " '" + cam.name + "'"
+                Write(Tag + "camera scene=" + sceneName + " '" + cam.name + "'"
                     + " px=" + cam.pixelWidth + "x" + cam.pixelHeight
                     + " ortho=" + cam.orthographic + "/" + cam.orthographicSize.ToString("0.##")
                     + " hdr=" + cam.allowHDR + " msaa=" + cam.allowMSAA
@@ -182,7 +200,7 @@ namespace LXIUM_sephiria
                 else if (l.lightType == Light2D.LightType.Sprite) sprite++;
                 else freeform++;
             }
-            Debug.Log(Tag + "scene=" + sceneName
+            Write(Tag + "scene=" + sceneName
                 + " light2d=" + lights.Length + "(global " + global + ", point " + point + ", sprite " + sprite + ", other " + freeform + ")"
                 + " particles=" + FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None).Length
                 + " volumes=" + FindObjectsByType<Volume>(FindObjectsSortMode.None).Length

@@ -97,7 +97,7 @@
 | URP 에셋 값 | 8장 참고 [관찰: 진단 모드] |
 | CPU/GPU 병목 | 개발 PC 기준 CPU 쪽 (8장). 이 빌드는 `FrameTimingManager`가 꺼져 있어 CPU/GPU 시간을 직접 못 읽고 renderScale A/B로 판별함 |
 
-## 8. 실행 중 측정 (진단 모드 0.1.0~0.1.1)
+## 8. 실행 중 측정 (진단 모드 0.1.0~0.1.2)
 
 `LXIUM_sephiria`의 진단 기능(`src/Diagnostics.cs`)으로 읽은 값. 개발 PC는 내장 GPU 노트북, 창 모드 약 1440×1000.
 
@@ -157,7 +157,26 @@ URP 에셋 (`UniversalRenderPipelineAsset`) [관찰]
 
 - **GC는 끊김의 주원인이 아님** [관찰]
 - **이 PC·해상도에서 GPU 병목 아님.** 병목은 CPU 쪽(메인·렌더 스레드)이나 화면 출력 대기 [추론]. 해상도·2D 라이트 텍스처 축소 같은 GPU 최적화는 효과가 작을 것 [추론]. 후반 층·전체 화면 고해상도에서는 다를 수 있음 [미확인]
-- 끊김은 게임 월드 안에서 약 0.5초 주기로 반복되는 CPU 작업일 가능성 [추론]. 게임 자체인지 다른 모드인지 [미확인]. 진단 0.1.2가 끊김 간격 분포를 기록함
+- 끊김은 게임 월드 안에서 약 0.5초 주기로 반복되는 CPU 작업일 가능성 [추론]
+
+3차 측정 (진단 0.1.2, LXIUM만 설치, 다른 모드 4개는 `AddOnsDisabled`로 이동) [관찰]
+
+| 항목 | 모드 5개 (2차) | LXIUM만 (3차) |
+|---|---|---|
+| 25ms 넘는 프레임 (10초당) | 대부분 19~23 | 대부분 0. 층 이동·로딩 구간만 1~19 |
+| p99 | 30~37ms | 7~10ms |
+| 평균 FPS | 147~207 | 131~180 |
+
+- **0.5초 주기 끊김의 원인은 게임이 아니라 다른 모드** [관찰]. 게임 자체는 매끄러움
+- 정적 분석 용의자: Sephiria QoL의 `RuntimeHost` 주기 루프 [추론]
+  - `WorldLoop`: 작업 20여 개를 12조각으로 나눠 1/6초마다 실행 (`WorldSliceCount=12`, `WorldSliceInterval=0.1666`)
+  - `PresentationLoop`: UI·입력 관련 작업 40여 개, `ScanInterval=2`
+  - `BindLoop`: `BindInterval=1`
+  - 일부 작업이 씬 전체 검색(`FindObjectsByType` 등)을 함
+- 다른 모드의 매 프레임 코드(`Update`/`LateUpdate`)에는 주기적 고비용 호출이 없음. Mira의 `FindObjectsByType`는 F2/F3 입력 시에만 실행 [관찰]
+- QoL 자체 계측: 채팅 명령 `/qol perf on | show | off` (`RuntimePerf`, `ScheduledWork`별 호출 수·평균·최대 시간). 주기 작업만 측정하고 Harmony 훅은 측정하지 않음 [관찰]
+- 범인 확정은 모드를 하나씩 넣는 측정으로 함 [미확인]
+- `Player.log`는 실행마다 덮어써지고 `Player-prev.log`도 갱신되지 않을 수 있음 [관찰]. 진단 0.1.3부터 모드 폴더의 `LXIUM_diag.log`에 세션별(로드된 모드 목록 포함)로 이어 씀
 - 다른 모드의 단축키: CustomSkin은 F7·F9(설정 가능, `Keyboard[Key]` 인덱서로 읽음), Mira's Item Mod는 F1~F3, QoL은 PageUp/PageDown·방향키·Tab·Enter·Alt 사용 [관찰]. 키 이름 속성(`get_f9Key`)만 검색하면 인덱서 사용을 놓침. LXIUM은 기본 단축키를 두지 않음
 
 ## 9. 다른 방식을 쓰지 않는 이유
