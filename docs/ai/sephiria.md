@@ -75,7 +75,7 @@
 | CustomSkin | 부트스트랩 `HarmonyBase.dll`(HorayModBase) → `Libs/0Harmony.dll` 선행 로드 → 본 DLL 로드 | 2.10.2, 패치 17 |
 | Mira's Item Mod | 부트스트랩 `MiraModBase.dll` → 본 DLL | 2.10.2, 패치 124 (대상 타입 68) |
 | Sephiria QoL | 단일 DLL. `HarmonyLib.Harmony, 0Harmony`를 `Type.GetType`으로 찾고 없으면 `Libs/0Harmony.dll`을 `LoadFrom`, 리플렉션으로 패치 | 2.4.2 동봉 |
-| SendMoney | 단일 DLL, 공식 API만. 채팅창 연결 전까지 0.5초마다 `FindObjectOfType` (8장) | 없음 |
+| SendMoney | 단일 DLL, 공식 API만. 채팅창 연결 전까지 0.5초마다 `FindObjectOfType` → 게임 월드에서 0.5초마다 20~25ms 끊김 (8장, 측정 확정) | 없음 |
 
 - 같은 이름의 `0Harmony`가 여러 버전 동봉됨. 어느 버전이 최종 사용되는지 [미확인]
 - 모든 모드가 공식 API와 Harmony를 함께 씀. AddOns 방식이 이 게임 모드 생태계의 표준 [추론]
@@ -97,7 +97,7 @@
 | URP 에셋 값 | 8장 참고 [관찰: 진단 모드] |
 | CPU/GPU 병목 | 개발 PC 기준 CPU 쪽 (8장). 이 빌드는 `FrameTimingManager`가 꺼져 있어 CPU/GPU 시간을 직접 못 읽고 renderScale A/B로 판별함 |
 
-## 8. 실행 중 측정 (진단 모드 0.1.0~0.1.3)
+## 8. 실행 중 측정 (진단 모드 0.1.0~0.1.3, 1~5차)
 
 `LXIUM_sephiria`의 진단 기능(`src/Diagnostics.cs`)으로 읽은 값. 개발 PC는 내장 GPU 노트북, 창 모드 약 1440×1000.
 
@@ -194,7 +194,19 @@ URP 에셋 (`UniversalRenderPipelineAsset`) [관찰]
 - 10월 11일 장시간 플레이 로그(모드 4개)에 연결 성공 메시지 `UI_ChatInput 바인딩 완료`가 한 번도 없음 → 플레이 내내 0.5초마다 검색 [관찰]
 - 채팅창(`UI_ChatInput : UIBase`)은 닫혀 있으면 비활성이고, `FindObjectOfType<T>()`는 비활성 오브젝트를 제외하므로 채팅을 열기 전에는 찾지 못함 [추론]
 - 타이틀은 오브젝트가 적어 검색이 싸므로 끊김이 없었던 것과 맞음 [추론]
-- 결론: 0.5초 주기 25~37ms 끊김의 원인일 가능성이 매우 높음 [추론]. LXIUM + SendMoney 단독 측정으로 확정 [미확인]
+5차 측정 (진단 0.1.3, LXIUM + SendMoney만) [관찰]
+
+| 항목 | 값 |
+|---|---|
+| 25ms 넘는 프레임 | 10초당 18~22, 세션 끝까지 지속 |
+| 끊김 간격 p25/p50/p75 | 0.50 / 0.50 / 0.50초 |
+| 그중 GC 동반 | 0 |
+| p50 / p99 | 5~6ms / 25~28ms |
+
+- **0.5초 주기 끊김의 원인은 SendMoney 1.0.1로 확정** [관찰]. 간격이 `scanTimer` 0.5초와 일치, 다른 모드 없음
+- `FindObjectOfType` 1회 비용은 개발 PC·게임 월드(오브젝트 약 36만 개)에서 약 20~25ms [추론: p99 − p50]
+- 사용자가 채팅창을 열었다 닫는 절차 후에도 끊김이 계속됐고 연결 성공 로그가 없음 [관찰]. 채팅을 연 시간이 0.5초 미만이었는지, 열어도 못 찾는지 [미확인]
+- 게임의 채팅창 열기 경로: `PlayerInputController.HandleChat` → `UIManager.GetElement<UI_ChatInput>()` → `UI_ChatInput.Chat()` → `UIBase.Open` [관찰]
 - 원인 제거 방법(모드 쪽): 게임의 `UIManager.GetElement<UI_ChatInput>()` 사용, 또는 `UI_ChatInput.OnOpened`에서 연결, 또는 비활성 포함 검색을 한 번만 수행
 - `Player.log`는 실행마다 덮어써지고 `Player-prev.log`도 갱신되지 않을 수 있음 [관찰]. 진단 0.1.3부터 모드 폴더의 `LXIUM_diag.log`에 세션별(로드된 모드 목록 포함)로 이어 씀
 - 다른 모드의 단축키: CustomSkin은 F7·F9(설정 가능, `Keyboard[Key]` 인덱서로 읽음), Mira's Item Mod는 F1~F3, QoL은 PageUp/PageDown·방향키·Tab·Enter·Alt 사용 [관찰]. 키 이름 속성(`get_f9Key`)만 검색하면 인덱서 사용을 놓침. LXIUM은 기본 단축키를 두지 않음
