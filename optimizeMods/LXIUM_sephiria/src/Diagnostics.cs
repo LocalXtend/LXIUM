@@ -14,26 +14,27 @@ namespace LXIUM_sephiria
     // 렌더 설정과 프레임 통계를 Player.log에 남기는 진단 기능.
     // - 시작 시: 실행 환경, URP 에셋과 렌더러 데이터의 직렬화 값
     // - 씬 로드 3초 후: 카메라 구성, 2D 라이트·파티클·볼륨 개수
-    // - 10초마다: FPS, 프레임 시간 분포, CPU/GPU 시간(지원 시), 드로우 콜, GC 할당
+    // - 10초마다: FPS, 프레임 시간 분포, 끊김 프레임 수와 그중 GC가 돈 프레임 수, 드로우 콜, 관리 힙 크기
     // - F9: URP renderScale을 원래 값 ↔ 0.5로 전환. GPU 병목이면 0.5에서 프레임이 크게 오른다.
     //   에셋을 런타임에만 바꾸므로 게임을 다시 켜면 원래 값으로 돌아간다.
+    // 이 게임 빌드는 FrameTimingManager(CPU/GPU 시간)와 GC 할당 카운터를 제공하지 않아 쓰지 않는다.
     sealed class Diagnostics : MonoBehaviour
     {
         const string Tag = "[LXIUM] ";
         const float ReportSeconds = 10f;
+        const float HitchSeconds = 0.025f;
         const float TestScale = 0.5f;
 
         readonly float[] _frameTimes = new float[16384];
         readonly float[] _sorted = new float[16384];
-        readonly FrameTiming[] _timing = new FrameTiming[1];
         int _frames;
         float _elapsed;
-        double _cpuMainMs, _cpuRenderMs, _gpuMs;
-        int _timedFrames;
+        int _hitches, _hitchesWithGc, _gcRuns, _lastGcCount;
 
-        ProfilerRecorder _setPass, _drawCalls, _batches, _gcAlloc;
-        long _setPassSum, _drawCallsSum, _batchesSum, _gcAllocSum;
+        ProfilerRecorder _setPass, _drawCalls, _batches;
+        long _setPassSum, _drawCallsSum, _batchesSum;
 
+        bool _f9WasDown;
         float _originalScale = -1f;
 
         void Start()
@@ -41,7 +42,7 @@ namespace LXIUM_sephiria
             _setPass = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
             _drawCalls = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count");
             _batches = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");
-            _gcAlloc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+            _lastGcCount = GC.CollectionCount(0);
 
             LogEnvironment();
             LogPipeline();
@@ -54,7 +55,6 @@ namespace LXIUM_sephiria
             _setPass.Dispose();
             _drawCalls.Dispose();
             _batches.Dispose();
-            _gcAlloc.Dispose();
             if (_originalScale >= 0f && Asset() is UniversalRenderPipelineAsset urp) urp.renderScale = _originalScale;
         }
 
@@ -64,23 +64,29 @@ namespace LXIUM_sephiria
             if (_frames < _frameTimes.Length) _frameTimes[_frames++] = dt;
             _elapsed += dt;
 
+            // 직전 프레임 사이에 GC가 끝났는지와 그 프레임이 끊겼는지를 함께 센다
+            int gc = GC.CollectionCount(0);
+            bool gcRan = gc != _lastGcCount;
+            _lastGcCount = gc;
+            if (gcRan) _gcRuns++;
+            if (dt > HitchSeconds)
+            {
+                _hitches++;
+                if (gcRan) _hitchesWithGc++;
+            }
+
             // 직전 프레임 값이 들어 있으므로 매 프레임 누적해 평균을 낸다
             _setPassSum += _setPass.LastValue;
             _drawCallsSum += _drawCalls.LastValue;
             _batchesSum += _batches.LastValue;
-            _gcAllocSum += _gcAlloc.LastValue;
 
-            FrameTimingManager.CaptureFrameTimings();
-            if (FrameTimingManager.GetLatestTimings(1, _timing) > 0 && _timing[0].cpuMainThreadFrameTime > 0)
-            {
-                _cpuMainMs += _timing[0].cpuMainThreadFrameTime;
-                _cpuRenderMs += _timing[0].cpuRenderThreadFrameTime;
-                _gpuMs += _timing[0].gpuFrameTime;
-                _timedFrames++;
-            }
-
+            // 게임의 Input System 갱신 방식과 무관하도록 눌림 상태 변화를 직접 비교한다
             var kb = Keyboard.current;
-            if (kb != null && kb.f9Key.wasPressedThisFrame) ToggleRenderScale();
+            bool f9Down = kb != null && kb.f9Key.isPressed;
+            bool f9Pressed = f9Down && !_f9WasDown;
+            _f9WasDown = f9Down;
+
+            if (f9Pressed) ToggleRenderScale();
             else if (_elapsed >= ReportSeconds) Report();
         }
 
@@ -97,23 +103,17 @@ namespace LXIUM_sephiria
             sb.Append(" fps=").Append((_frames / _elapsed).ToString("0.0"));
             sb.Append(" ms(p50/p95/p99/max)=").Append(Pct(0.5f).ToString("0.0")).Append('/').Append(Pct(0.95f).ToString("0.0"))
               .Append('/').Append(Pct(0.99f).ToString("0.0")).Append('/').Append((_sorted[_frames - 1] * 1000f).ToString("0.0"));
-            if (_timedFrames > 0)
-                sb.Append(" cpuMain=").Append((_cpuMainMs / _timedFrames).ToString("0.00"))
-                  .Append(" cpuRender=").Append((_cpuRenderMs / _timedFrames).ToString("0.00"))
-                  .Append(" gpu=").Append((_gpuMs / _timedFrames).ToString("0.00"));
-            else
-                sb.Append(" frameTiming=unavailable");
+            sb.Append(" hitches>25ms=").Append(_hitches).Append(" withGC=").Append(_hitchesWithGc).Append(" gcRuns=").Append(_gcRuns)
+              .Append(" heapMB=").Append((GC.GetTotalMemory(false) / 1048576f).ToString("0"));
             sb.Append(" setpass=").Append(_setPassSum / _frames)
               .Append(" draws=").Append(_drawCallsSum / _frames)
-              .Append(" batches=").Append(_batchesSum / _frames)
-              .Append(" gcKB/frame=").Append((_gcAllocSum / _frames / 1024f).ToString("0.0"));
+              .Append(" batches=").Append(_batchesSum / _frames);
             Debug.Log(sb.ToString());
 
             _frames = 0;
             _elapsed = 0f;
-            _cpuMainMs = _cpuRenderMs = _gpuMs = 0;
-            _timedFrames = 0;
-            _setPassSum = _drawCallsSum = _batchesSum = _gcAllocSum = 0;
+            _hitches = _hitchesWithGc = _gcRuns = 0;
+            _setPassSum = _drawCallsSum = _batchesSum = 0;
         }
 
         void ToggleRenderScale()
@@ -144,7 +144,8 @@ namespace LXIUM_sephiria
                 + " vsync=" + QualitySettings.vSyncCount
                 + " targetFps=" + Application.targetFrameRate
                 + " quality=" + QualitySettings.names[QualitySettings.GetQualityLevel()] + "(" + QualitySettings.GetQualityLevel() + "/" + QualitySettings.names.Length + ")"
-                + " frameTiming=" + FrameTimingManager.IsFeatureEnabled());
+                + " frameTiming=" + FrameTimingManager.IsFeatureEnabled()
+                + " input=" + (Keyboard.current != null ? InputSystem.settings.updateMode.ToString() : "noKeyboard"));
         }
 
         static void LogPipeline()

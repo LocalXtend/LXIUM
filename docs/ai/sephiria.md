@@ -30,6 +30,7 @@
 ## 3. 공식 모드 로더 (`AddOnLoader`) [관찰]
 
 - 호출 시점: `GameDataLoader.Awake` → `InternalMod.Register` → `AddOnLoader.LoadAll` → 각 `*Database.Initialize` → `HorayModAPI.NotifyAllModDatabasesReady`. 즉 모드는 데이터베이스 초기화 전에 로드됨
+- `GameDataLoader`는 타이틀에서 세이브를 골라 게임에 들어갈 때(서버 시작 직후) 생성됨. **타이틀 화면에서는 모드가 아직 로드되지 않음** [관찰: Player.log]. 한 번 로드되면 이후 타이틀로 돌아가도 유지됨
 - 폴더: `Path.GetFullPath(Application.dataPath + "/../AddOns")` 의 하위 폴더 전부. `Directory.GetDirectories` 결과 순서 그대로, 정렬 코드 없음
 - 폴더별 처리
   1. `metadata.json` 읽기 (`JsonUtility.FromJson<AddOnMetadata>`). 없으면 폴더명을 `modName`으로 진행
@@ -93,10 +94,59 @@
 | 이미 된 최적화 | 오브젝트 풀링(`ObjectPoolingFactory<T>`, `PoolPrewarm`), 공간 해시 물리(`TopdownSpatialHash`, NonAlloc), 애니메이터 셀 컬링(`CellBasedCulling` → `SimpleAnimator2D.CulledUpdate`) [관찰] |
 | 스크립트 부하 | MonoBehaviour 계열 1997 타입, `Update` 644, `LateUpdate` 97 [관찰] |
 | Update 안 비용 후보 | 물리 쿼리 46곳(스포너류), 문자열 결합 59곳(`UI_HPBar` 등), `GetComponent` 55곳, LINQ 10곳(`PlayerAvatar`, `DayCycle`), `Camera.main` 2곳 [관찰]. 실제 비중 [미확인] |
-| URP 에셋 값 (renderScale, MSAA, HDR, 2D 라이트 RT 스케일) | [미확인] — 직렬화 에셋에 있음. 진단 모드로 실행 중 읽어야 함 |
-| CPU/GPU 병목 | [미확인] |
+| URP 에셋 값 | 8장 참고 [관찰: 진단 모드] |
+| CPU/GPU 병목 | [미확인]. 이 빌드는 `FrameTimingManager`가 꺼져 있어 CPU/GPU 시간을 직접 못 읽음. renderScale A/B로 판별 |
 
-## 8. 다른 방식을 쓰지 않는 이유
+## 8. 실행 중 측정 (진단 모드 0.1.0)
+
+`LXIUM_sephiria`의 진단 기능(`src/Diagnostics.cs`)으로 읽은 값. 개발 PC는 내장 GPU 노트북, 창 모드 약 1440×1000.
+
+URP 에셋 (`UniversalRenderPipelineAsset`) [관찰]
+
+| 값 | 상태 |
+|---|---|
+| `m_RenderScale` | 1 |
+| `m_MSAA` | Disabled |
+| `m_SupportsHDR` | True (`m_HDRColorBufferPrecision=_32Bits`) |
+| `m_UpscalingFilter` | Auto |
+| `m_UseSRPBatcher` | True |
+| `m_VolumeFrameworkUpdateMode` | EveryFrame |
+| `m_ColorGradingMode` | LowDynamicRange |
+| 3D 그림자·라이트 쿠키 등 | 그림자 꺼짐. 2D 게임이라 영향 작음 [추론] |
+
+2D 렌더러 (`Renderer2DData`) [관찰]
+
+| 값 | 상태 |
+|---|---|
+| `m_LightRenderTextureScale` | 1 (라이트 텍스처를 화면 해상도 그대로 그림) |
+| `m_MaxLightRenderTextureCount` | 16 |
+| `m_LightBlendStyles` | 4개 |
+| `m_UseDepthStencilBuffer` | True |
+
+카메라 [관찰]
+
+- 메인 카메라: 직교, `renderPostProcessing=True`, AA 없음, 화면에 직접 그림
+- 타이틀의 `WaterCamera`: 1920×640 렌더 텍스처에 별도로 그림 (HDR, MSAA 허용)
+
+실행 환경 [관찰]
+
+- D3D11, 그래픽 스레드 MultiThreaded, 품질 단계 1개(`Default`)
+- 게임 옵션 기본값 VSync 0, `targetFrameRate` 0(제한 없음)
+- 릴리스 빌드라 `FrameTimingManager`, `GC Allocated In Frame` 카운터는 값이 없음. Render 카운터(SetPass·Draw·Batches)는 읽힘
+
+프레임 (마을 → Rabbittown → Moleland 초반, 모드 5개 설치) [관찰]
+
+| 지표 | 값 |
+|---|---|
+| 평균 FPS | 118~165 |
+| p50 | 5.7~7.7ms |
+| p99 | 36~39ms. 모든 10초 구간에서 거의 같음, 타이틀에서도 같음 |
+| SetPass / Draw | 101~195 / 137~346 |
+
+- 평균 처리량은 충분하나 상위 1% 프레임이 평소의 5~6배. 체감 끊김의 1순위 후보 [추론]
+- 일정한 길이(약 37ms)의 주기적 정지라 GC 또는 고정 작업일 가능성 [추론]. 진단 0.1.1에서 끊김 프레임과 GC 실행을 같이 기록해 판별
+
+## 9. 다른 방식을 쓰지 않는 이유
 
 | 방식 | 판단 근거 |
 |---|---|
@@ -106,9 +156,9 @@
 
 - 멀티플레이 접속 검사(`HorayNetworkAuthenticator.OnServerVersionMessage`)는 `Application.version` 문자열만 비교. DLL 해시 검사 없음 [관찰]. 단 로직을 바꾸면 클라이언트 간 상태가 어긋날 수 있음 [추론]
 
-## 9. 모드 구현 규칙 (LXIUM_sephiria)
+## 10. 모드 구현 규칙 (LXIUM_sephiria)
 
-1. 설치 위치 `AddOns/LXIUM_sephiria/`. `metadata.json`에는 4장의 공식 필드만 씀. `entryClass`는 전체 이름을 정확히
+1. 설치 위치 `AddOns/LXIUM_sephiria/`. `metadata.json`에는 3장의 공식 필드 5개만 씀. `entryClass`는 전체 이름을 정확히
 2. 진입 클래스(`HorayModBase` 상속)의 필드·시그니처에 Harmony 타입을 쓰지 않음. `OnModLoaded`에서 의존 DLL 해결을 먼저 하고, Harmony를 쓰는 코드는 별도 클래스로 분리
 3. 매 프레임 동작이 필요하면 `OnModLoaded`에서 `DontDestroyOnLoad` GameObject + MonoBehaviour를 만듦 (`HorayModBase`는 MonoBehaviour가 아님)
 4. 최적화 우선순위: ① Unity 설정 API(URP 에셋, Light2D, Volume, 파티클 on/off) ② 프로파일링으로 확인된 핫스팟만 Harmony 패치
@@ -116,7 +166,7 @@
 6. 로그 접두사 `[LXIUM]`. 출력은 Unity 로그(`Player.log`)
 7. 사용자 설정 파일은 모드가 실행 중 생성 (`docs/ai/addon.md` 5장)
 
-## 10. 분석 방법
+## 11. 분석 방법
 
 - REA(`inspect_managed_artifact`)로 `Assembly-CSharp.dll`을 관리 PE로 분류하고 메타데이터를 확인함. REA `inspect_managed_members`는 64MB 고정 한도 초과로 본체와 QoL DLL에서 실패
 - 대체로 .NET `System.Reflection.Metadata`로 IL을 읽기만 하는 덤프를 만들어 타입·메서드·호출·문자열을 추출. 타입·메서드 수가 REA 수치와 일치함
