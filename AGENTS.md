@@ -34,10 +34,13 @@ git은 dev 브렌치를 사용합니다.
 기본적으로 git 행위를 지속적으로 업데이트합니다.
 항상 코드 수정을 할 때마다 git을 합니다.
 
+저장소 하나에 런처, 문서, `optimizeMods/`의 모든 프로젝트를 둡니다. 하위 폴더에서 `git init`을 하지 않습니다.
+릴리즈 태그는 런처 `LXIUM-v<버전>`, 모드 `<id>-v<버전>` 형식입니다.
+
 커밋은 GitHub 계정 LocalXtend로 합니다 (`user.name=LocalXtend`, `user.email=285211027+LocalXtend@users.noreply.github.com`).
 
 ## Readme 작성법
-소스 저장소의 README.md는 아래 내용을 그대로 씁니다. 버전 줄만 바꿉니다.
+저장소 루트의 README.md는 아래 내용을 그대로 씁니다. 버전 줄만 바꿉니다.
 (현재 = 방금 릴리즈한 버전)
 ```
 # LXIUM
