@@ -30,7 +30,11 @@
 ## 3. 공식 모드 로더 (`AddOnLoader`) [관찰]
 
 - 호출 시점: `GameDataLoader.Awake` → `InternalMod.Register` → `AddOnLoader.LoadAll` → 각 `*Database.Initialize` → `HorayModAPI.NotifyAllModDatabasesReady`. 즉 모드는 데이터베이스 초기화 전에 로드됨
-- `GameDataLoader`는 타이틀에서 세이브를 골라 게임에 들어갈 때(서버 시작 직후) 생성됨. **타이틀 화면에서는 모드가 아직 로드되지 않음** [관찰: Player.log]. 한 번 로드되면 이후 타이틀로 돌아가도 유지됨
+- `GameDataLoader`는 타이틀에서 세이브를 골라 게임에 들어갈 때(서버 시작 직후) 생성됨. **타이틀 화면에서는 모드가 아직 로드되지 않음** [관찰: Player.log]
+- **타이틀로 나갔다가 다시 게임에 들어가면 `LoadAll`이 다시 실행됨** [관찰: Player.log]. 그 사이 `UnloadAll`은 호출되지 않음. `Assembly.LoadFrom`은 이미 로드된 같은 어셈블리를 돌려주므로 static 상태는 유지되고, `HorayModBase` 인스턴스만 새로 생겨 `OnModLoaded`가 다시 불림
+  - 모드는 `OnModLoaded`를 여러 번 받아도 안전해야 함 (static 플래그로 1회만 초기화)
+  - Mira's Item Mod는 `Core.IsInitialized`로 막음 [관찰]. CustomSkin은 `HarmonyInitializer.Init`이 매번 `PatchAll`을 호출하고 막는 코드가 보이지 않아, 재진입마다 패치가 겹칠 수 있음 [추론, 미확인]
+  - LXIUM 0.2.0까지는 재진입마다 호스트 GameObject가 하나씩 늘어나는 버그가 있었음. 0.2.1에서 static 호스트로 수정
 - 폴더: `Path.GetFullPath(Application.dataPath + "/../AddOns")` 의 하위 폴더 전부. `Directory.GetDirectories` 결과 순서 그대로, 정렬 코드 없음
 - 폴더별 처리
   1. `metadata.json` 읽기 (`JsonUtility.FromJson<AddOnMetadata>`). 없으면 폴더명을 `modName`으로 진행
@@ -40,7 +44,7 @@
   5. `Activator.CreateInstance` → `LoadMod(Metadata)` → `OnModLoaded()`
 - `AddOnMetadata` 필드는 `modName`, `modVersion`, `modAuthor`, `dllFile`, `entryClass` 다섯 개뿐. 다른 필드(`modFile`, `modClass` 등)는 로더가 무시함
 - 하위 폴더(`Libs/` 등)의 의존 DLL은 로더가 찾아주지 않음. 의존 DLL은 모드가 직접 해결해야 함
-- 언로드: `AddOnLoader.UnloadAll` → `HorayModBase.UnloadMod` → `OnModUnloaded()`
+- 언로드: `AddOnLoader.UnloadAll` → `HorayModBase.UnloadMod` → `OnModUnloaded()`. 관찰한 플레이 흐름(타이틀 복귀·재진입)에서는 호출되지 않음
 - `AddOnsDisabled` 폴더는 게임 코드에 없음. 다른 도구의 관례 [추론]. 런처는 이 폴더를 건드리지 않음
 - Steam 창작마당 로더(`SteamWorkshopLoader`)는 언어팩(`LocalizationManager.LoadLanguageFromWorkshop`)에만 쓰임. DLL 모드는 AddOns에서만 로드
 
