@@ -138,7 +138,11 @@ PerspectiveStage
 - 법정 프리팹 `Court`, `Court_Final` [관찰: general-prefabs]
   - URP Lit 재질 (바닥·계단: 노멀·메탈릭 맵, 2048² / 벽: 알파 테스트) — 빛 계산하는 3D 재질
   - 스포트라이트 2개, 강도 2000, 그림자 없음
-  - 불 연출: `FireContainer` 12개, 셰이더 `SH_Vefects_VFX_URP_Fire_Flames_01`(패스 4, 노이즈 텍스처 여러 장), 파티클 시스템 25개 (초당 1개, prewarm) → 입자 수는 적고 **큰 쿼드의 픽셀 셰이더 비용**이 핵심 [추론]
+  - 불 연출: `FireContainer` 12개, 셰이더 `SH_Vefects_VFX_URP_Fire_Flames_01`(패스 4, 노이즈 텍스처 여러 장), 파티클 시스템 25개 (초당 1개, 수명 1.01초, 크기 20~25, prewarm) → 입자 수는 적고 **큰 쿼드의 픽셀 셰이더 비용**이 핵심 [추론]
+  - 불 셰이더 화면 패스(D3D11 ps_5_0 디스어셈블) [관찰]: 픽셀마다 텍스처 8회 = 깊이(`_CameraDepthTexture`, 깊이 페이드) + 왜곡 노이즈 + 노이즈 2장 + 마스크 + `_TextureSample2` + 비어 있는 `_ColorGradientMask`·`_DistortionMaskTexture`(기본 흰색이라 늘 1). 알파 블렌드(SrcAlpha, OneMinusSrcAlpha), 깊이 쓰기 없음
+  - 식: `t = 시간 × _WindSpeed`, `d = 왜곡노이즈 × _DistortionAmount × 0.1`, `noise = sat(pow(n1·n2, _Noises_Power) × _Noises_Multiply) × _NoisesOpacityBoost`, `mask = sat(pow(마스크(uv + d), _Mask_Power) × _Mask_Multiply)`, `a = mask − noise × 그라데이션(v + 0.4)`, 알파 = `sat(sat(깊이페이드 × (a − _Dissolve)) × 정점알파)`, 색 = `_ColorTop × 정점색 × a × _EmissiveIntensity(55)`
+  - `_TextureSample2` = `T_VFX_Gradient_Up_Down_01`: 256², 클램프·점 필터, 가로로 일정한 S자 곡선 (`0.4v + 0.6·smoothstep(v)`와 오차 0.01 안팎). 마스크 `T_VFX_Directional_Dust_01`는 54%가 0 [관찰]
+  - 2·3차 측정 장면(대화 중 법정)의 스크린샷에는 불 효과가 없음. 화면의 불꽃 무늬는 스테인드글라스 텍스처 [관찰]. 불은 연출 때만 켜짐 [추론: `ChangeFireFxActivity`]
   - 단상 `Court_Stand` 13~14개: 투명 Lit (premultiply)
   - `Court.ChangeFireFxActivity`: 불 오브젝트 SetActive + 스포트라이트 색을 불빛 색(1, 0.4, 0.2)으로 (ev_336c2b33c95f2a46)
 - `StageCameraController.SetCameraEnabled(bool)`이 **두 카메라를 함께** 켜고 끔. `Present`/`Dismiss`가 이것만 부름 (ev_1c598cc193990d13)
@@ -180,7 +184,7 @@ PerspectiveStage
 | 제거됨 | 대체 |
 |---|---|
 | `QualitySettings.set_vSyncCount`/`get_vSyncCount` | `IL2CPP.ResolveICall("UnityEngine.QualitySettings::set_vSyncCount")` |
-| `RenderTexture.IsCreated`, `set_antiAliasing` | `ResolveICall` |
+| `RenderTexture.IsCreated`, `set_antiAliasing` | `ResolveICall`. `set_antiAliasing`은 BepInEx interop이 icall로 복원해 그대로 호출됨 [관찰: 0.2.0 실행] |
 | `ScreenCapture.CaptureScreenshot`, `ImageConversion.EncodeToPNG` | `CaptureScreenshotAsTexture` + `EncodeToJPG` |
 | `Object.GetInstanceID` | interop 객체의 `Pointer` |
 
@@ -261,6 +265,12 @@ Harmony는 기계어 주소를 가로채므로, 공유 주소를 패치하면 �
   - 6_stageRes의 차이는 벽지 무늬·가장자리 같은 세밀한 부분. 원래는 1920x1080을 창 크기로 줄여 보여 줘서 약 1.4배 슈퍼샘플링이 됐던 것이 빠진 것 [추론]. 확대해 봐야 보이는 수준
 - 남은 8.7 ms: 메인 카메라(768p, FXAA·후처리) + 무대 카메라 1대(768p, Lit·불·SSAO·MSAA 2x·FXAA) [추론]
 
+### 0.2.0 실행 확인 (타이틀 화면)
+
+- `FireLite = true`로 실행: 내장 번들 로드, `LXIUM/FireLite supported=True` (D3D11), 오류 없음. Player.log의 셰이더 오류는 URP `DBufferClear` 하나(원래 있던 것) [관찰]
+- 무대 카메라 추가 데이터: 후처리 켬, RT MSAA 2 [관찰: 로그]
+- 실험(4차)은 사용자 측정 대기
+
 ## 11. 분석 방법
 
 | 도구 | 용도 |
@@ -269,6 +279,7 @@ Harmony는 기계어 주소를 가로채므로, 공유 주소를 패치하면 �
 | REA `inspect-managed-members` | `GigaCreation.NaninovelExtender.ExtendedActors` 더미 어셈블리 멤버 목록 (ev_161a58b13b809c6d) |
 | Cpp2IL 2022.1.0-dev.1452 | 메타데이터 → 더미 DLL·시그니처(RVA)·ISIL(명령 수준) |
 | UnityPy 1.25.4 + TypeTreeGeneratorAPI | 번들·씬·설정 에셋 읽기. IL2CPP라 MonoBehaviour 타입트리는 더미 DLL에서 생성 |
+| d3dcompiler_47.dll (`D3DDisassemble`) | 셰이더 블롭(LZ4)에서 DXBC를 꺼내 디스어셈블. 텍스처·상수 이름은 `m_ParsedForm`의 `m_CommonParameters`·`m_NameIndices`에서 매핑 |
 
 - REA 기본 Ghidra 시간 제한(330초)으로는 54 MB 바이너리 분석이 끝나지 않음 → `REA_GHIDRA_STARTUP_TIMEOUT_MS`를 늘리고 `REA_GHIDRA_SEED_FILE`로 시드 지정
 - 한계: 정적 분석만 함. 가상·인터페이스 호출의 호출자는 정적으로 못 찾음 (5.4 `animated` 소비자). GPU 비용 수치는 모두 [추론]
@@ -302,3 +313,4 @@ Harmony는 기계어 주소를 가로채므로, 공유 주소를 패치하면 �
 - 1080p 모니터에서 기본 해상도 단계가 실제로 고르는 해상도 (2차는 1366x768 창 모드)
 - TrueShadow `LateUpdate`의 CPU 비용
 - 재현 연출(`SpawnableReenactment`, SpriteSkin 343개)의 변형 비용
+- 불이 켜진 장면에서 불 셰이더의 실제 GPU 비용과 화면 덮는 넓이 (실험실 `10_fireOn`으로 측정 예정)
