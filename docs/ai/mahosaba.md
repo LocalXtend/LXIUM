@@ -465,3 +465,4 @@ Harmony는 기계어 주소를 가로채므로, 공유 주소를 패치하면 �
 - TrueShadow `LateUpdate`의 CPU 비용
 - 재현 연출(`SpawnableReenactment`, SpriteSkin 343개)의 변형 비용
 - 실제 불 연출(조명 색이 불빛으로 바뀌는 장면)에서 FireLite 화질
+- 0.4.0 법정 건물 캐시·빠른 변화 감지의 실제 효과 (10차 측정 예정)
