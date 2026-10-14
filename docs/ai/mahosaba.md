@@ -202,9 +202,19 @@ Harmony는 기계어 주소를 가로채므로, 공유 주소를 패치하면 �
 - 컴파일용 interop 어셈블리: BepInEx가 첫 실행 때 `BepInEx/interop`에 만듦. 설치 전에는 Cpp2IL 2022.1.0-dev.1452 + Il2CppInterop.Generator 1.5.3(be.785와 같은 버전)으로 직접 생성해 `-p:InteropDir=`로 지정
 - 대상 프레임워크 net6.0 (BepInEx 6 IL2CPP 런타임)
 
-## 10. 렌더 실험실 측정 결과
+## 10. 실행 중 측정
 
-- 아직 없음. 측정 절차는 `mahosaba-render.md` 3장
+### 1차 (LXIUM 0.1.0, BepInEx 6.0.0-be.788, 개발 PC Iris Xe)
+
+- 사용자 체감: 재판 장면이 원래 10fps 미만 → 0.1.0 기본 설정에서 **60fps 고정 유지** [관찰: 사용자 보고]
+  - 기본 `TargetFps=0`(모니터 60Hz + VSync)이라 60이 상한. 실제 여유는 `-1`로 재야 함 [미확인]
+  - 기능별 기여도는 모름. 렌더 실험실은 설정 `RenderLab=false`라 F10이 동작하지 않았고 `lab.txt` 없음
+- `BepInEx/LogOutput.log`로 확인한 정적 분석 값 [관찰: 실행 로그]
+  - URP 에셋 `URP-HighFidelity`, MSAA 4, 중간 텍스처 Always, SSAO 기능 있음 (4장과 같음)
+  - 무대 카메라 2대, RT 1920x1080 (6.1과 같음)
+  - 레이어 캐릭터 PPU 100 → 53.33: 액터 생성 시점 화면 높이가 768 (1366x768로 실행 중) → 합성 RT 800x1600
+- `TransitionalRenderer.CreateFor` 패치가 레이어 캐릭터에서 39번 불림 (한 세션) → 액터가 장면마다 다시 만들어짐 [추론]. 배율은 생성 때마다 그 시점 화면 높이로 다시 계산되므로, 해상도를 바꾸면 이후 생성되는 캐릭터부터 반영됨 [추론: 코드]
+- 오류·예외 로그 없음 [관찰]
 
 ## 11. 분석 방법
 
