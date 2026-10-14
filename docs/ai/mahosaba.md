@@ -144,6 +144,10 @@ PerspectiveStage
   - `_TextureSample2` = `T_VFX_Gradient_Up_Down_01`: 256², 클램프·점 필터, 가로로 일정한 S자 곡선 (`0.4v + 0.6·smoothstep(v)`와 오차 0.01 안팎). 마스크 `T_VFX_Directional_Dust_01`는 54%가 0 [관찰]
   - 2·3차 측정 장면(대화 중 법정)의 스크린샷에는 불 효과가 없음. 화면의 불꽃 무늬는 스테인드글라스 텍스처 [관찰]. 불은 연출 때만 켜짐 [추론: `ChangeFireFxActivity`]
   - 단상 `Court_Stand` 13~14개: 투명 Lit (premultiply)
+  - 법정 재질 [관찰: 번들]: `Court_Floor`(노멀·메탈릭 맵, 색 0.415/0.159/0.159), `Court_Step`(+오클루전 맵), `Court_Wall`·`@7`·`@Flip`(알파 테스트 0.5, 맵 없음, 매끄러움 0.5), `Court_Stand`(투명 premultiply, 큐 3000). 셰이더는 같은 번들의 URP Lit
+  - 조명 환경 [관찰: level0·번들]: 방향광 없음, 반사 프로브 없음, 안개 꺼짐, 주변광 모드 Skybox인데 스카이박스 재질 없음. 스포트라이트 2개는 강도 2000·범위 90·바깥 140°/안쪽 90°·그림자·쿠키 없음
+  - URP Lit ForwardLit 변형 [관찰: 셰이더 블롭]: D3D11 픽셀 80개(ps_4_0)·정점 8개(vs_4_0). 남은 변형이 모두 `_MAIN_LIGHT_SHADOWS(_CASCADE)`·`_ADDITIONAL_LIGHT_SHADOWS`·`_SCREEN_SPACE_OCCLUSION`·반사 프로브 블렌딩·박스 투영 키워드를 가짐 → 그림자·SSAO가 꺼진 지금도 가장 가까운 이 변형이 쓰여 그림자 맵·SSAO 텍스처를 읽고 큐브맵 3장을 블렌딩함. 바닥 변형 약 300 명령어·텍스처 9회
+  - 이 게임은 감마 색공간: Lit이 SH 결과를 LinearToSRGB로 바꿈 [관찰: 디스어셈블]
   - `Court.ChangeFireFxActivity`: 불 오브젝트 SetActive + 스포트라이트 색을 불빛 색(1, 0.4, 0.2)으로 (ev_336c2b33c95f2a46)
 - `StageCameraController.SetCameraEnabled(bool)`이 **두 카메라를 함께** 켜고 끔. `Present`/`Dismiss`가 이것만 부름 (ev_1c598cc193990d13)
 - 화면 분할·표시는 `StageScreenController`가 화면 컨테이너의 CanvasGroup 알파와 Quadrilateral 모양으로만 바꿈 [관찰: ISIL] → **한 화면만 보일 때도 두 카메라가 모두 1920x1080을 그림** [관찰: 10장 2차 `stageSkip`]
@@ -417,7 +421,8 @@ Harmony는 기계어 주소를 가로채므로, 공유 주소를 패치하면 �
 
 ## 12. 미확인
 
-- 무대 카메라 2.53 ms의 내역 (법정 Lit 벽·바닥 대 투명 단상 대 캐릭터)
+- 무대 카메라 2.53 ms의 내역 (법정 Lit 벽·바닥 대 투명 단상 대 캐릭터). 0.3.0 실험실 `03_courtHidden`으로 측정 예정
+- CourtLite의 실제 절감·화면 일치 (0.3.0 실험실)
 - TrueShadow `LateUpdate`의 CPU 비용
 - 재현 연출(`SpawnableReenactment`, SpriteSkin 343개)의 변형 비용
 - 실제 불 연출(조명 색이 불빛으로 바뀌는 장면)에서 FireLite 화질

@@ -55,15 +55,16 @@ B1·B2가 켜지면 대사만 넘기는 장면에서 화면 밖 렌더는 거의
 
 셰이더는 실행 중 컴파일이 안 된다. 이 PC에는 Unity 에디터 본체가 없어서(6000.5.7f1은 Hub 메타데이터만 있음 [관찰]) 에디터 없이 만든다.
 
-**빌드 방법** (`optimizeMods/LXIUM_mahosaba/shaders/build_firelite.py`, UnityPy + `d3dcompiler_47.dll`)
+**빌드 방법** (`optimizeMods/LXIUM_mahosaba/shaders/build_shaders.py`, UnityPy + `d3dcompiler_47.dll`. 0.3.0부터 FireLite·CourtLite를 한 번들로)
 
 1. 게임 번들의 원본 셰이더 객체를 틀로 씀. 직렬화 형식이 게임과 같아서(6000.0.48f1) 버전 호환 문제가 없음
 2. 플랫폼 블롭(LZ4) 구조: `개수 + (오프셋, 길이, 세그먼트)×N + 항목`. 항목은 서브프로그램 또는 파라미터 블롭(상수 버퍼 이름·크기)
-3. 서브프로그램 구조: `버전 202012090, GPU 프로그램 종류, 통계 4개, 키워드 목록, 코드(길이 + Unity 헤더 38바이트 + DXBC, 4바이트 정렬), 나머지(정점 채널 바인딩 등)`. DXBC만 `D3DCompile`(vs_5_0/ps_5_0, O3) 결과로 바꿈
+3. 서브프로그램 구조: `버전 202012090, GPU 프로그램 종류, 통계 4개, 키워드 목록, 코드(길이 + Unity 헤더 38바이트 + DXBC, 4바이트 정렬), 나머지(정점 채널 바인딩 등)`. DXBC만 `D3DCompile`(원본과 같은 셰이더 모델, O3) 결과로 바꿈. Unity 헤더의 바이트 1~3은 텍스처·상수 버퍼·샘플러 슬롯 수로 보이며 원본 것을 그대로 둠
+   - 파라미터 블롭(변형별): `버전, 6, 0×4, 상수 버퍼마다 (이름, 크기, 벡터 수, (이름, 0, 행, 열, 종류, 배열, 오프셋)×n, 행렬 수 …), 텍스처 수, (이름, 0, 레지스터, 샘플러 레지스터 또는 -1, 차원 4=2D·8=큐브)×n, …, 인라인 샘플러(상태, 레지스터)`. 텍스처 레지스터는 변형마다 다르고, 상수 버퍼 배치·바인딩은 패스 공통(`m_CommonParameters`)
 4. 텍스처·샘플러·상수의 위치는 `m_ParsedForm`의 메타데이터대로 엔진이 채우므로, HLSL에서 레지스터(`t1~t5`, `s2~s6`)와 상수 버퍼 오프셋(`$Globals`의 `_TimeParameters` 304, `unity_MatrixVP` 1248, `UnityPerMaterial` 176바이트 배치)을 원본과 같게 맞춤
 5. 첫 패스(화면 그리기)와 D3D11만 남기고 나머지 패스·Vulkan·OpenGL 코드는 뺌 → 번들에 원본 코드가 없음. 타입 트리도 남은 두 객체(Shader, AssetBundle) 것만
-6. 이름 `LXIUM/FireLite`, 번들 이름 `lxium_mahosaba`, 내부 파일 `CAB-<md5("LXIUM_mahosaba")>` (게임 번들과 같은 CAB 이름이면 Unity가 이미 로드된 번들로 보고 거부)
-7. 결과 `res/lxium_mahosaba.bundle`(약 20 KB)를 DLL에 포함. 실행 중 `AssetBundle.LoadFromMemory` → `LoadAllAssetsAsync(Shader)` → `hideFlags = DontUnloadUnusedAsset`
+6. 이름 `LXIUM/FireLite`·`LXIUM/CourtLite`, 번들 이름 `lxium_mahosaba`, 내부 파일 `CAB-<md5("LXIUM_mahosaba")>` (게임 번들과 같은 CAB 이름이면 Unity가 이미 로드된 번들로 보고 거부)
+7. 결과 `res/lxium_mahosaba.bundle`(약 29 KB)를 DLL에 포함. 실행 중 `AssetBundle.LoadFromMemory` → `LoadAllAssetsAsync(Shader)` → `hideFlags = DontUnloadUnusedAsset`
 
 **셰이더**
 
@@ -72,10 +73,24 @@ B1·B2가 켜지면 대사만 넘기는 장면에서 화면 밖 렌더는 거의
 | C1 | `LXIUM/ActorDirect` | 전환(Naninovel `TransitionalTexture`의 전환 키워드 중 실제 쓰는 것만) + 색조 + 불투명도 + 선명화를 한 패스로 화면에 | `TransitionalMaterial` 프로퍼티(메인·전환 텍스처, 진행도, 색), 깊이 패스 컷오프 | 후보 (같은 방법으로 빌드 가능) |
 | C2 | `LXIUM/Sharpen` | B3·B5로 줄인 RT를 화면에 그릴 때 RCAS(적응형 선명화) | B3·B5 배율을 보고 강도 조절 | 후보 |
 | C3 | `LXIUM/FireLite` | 원본 불 식(mahosaba.md 6.2)에서 늘 1인 빈 텍스처 2개를 상수로, `_TextureSample2`(세로 S자 곡선)를 식으로 바꾸고 깊이 페이드를 뺌 → 텍스처 8회 → 4회. 마스크가 0인 픽셀은 `clip`으로 노이즈 2회를 건너뜀(마스크 텍스처의 54%) | 불 재질의 `shader`만 바꿈. 속성 이름이 원본과 같아 색·속도·마스크 값과 `ChangeFireFxActivity`의 켜고 끄기를 그대로 따름. 불빛 색은 스포트라이트라 영향 없음 | 기본 켬 `Stage.FireLite` (0.2.1, D3D11 전용. 4차: 불 비용 0.93 → 0.21 ms) |
-| C4 | `LXIUM/CourtLite` | 법정 Lit 재질을 스포트라이트 2개 고정 조명용 단순 셰이딩으로 | 스포트라이트 색(불빛 색 전환) | 후보 |
+| C4 | `LXIUM/CourtLite` | URP Lit ForwardLit과 같은 BRDF(GGX)·스포트라이트 감쇠·SH(감마 변환)를 쓰고, 그림자·SSAO·반사 프로브 블렌딩·박스 투영·쿠키·메인 라이트를 뺌. 반사는 전역 큐브맵 한 장(`_GlossyEnvironmentCubeMap`) | 재질의 `shader`만 바꿈. 키워드·값이 그대로라 변형 선택도 원본과 같음. 스포트라이트 색은 매 프레임 URP가 넣는 값을 그대로 읽음 | 구현 `Stage.CourtLite` (0.3.0, 기본 끔, 측정 대기) |
 
 - FireLite 화면 차이: 불 쿼드가 벽·바닥과 만나는 1 유닛 안에서 원래는 흐려지던 경계가 또렷해짐. 그라데이션 근사 오차 0.01 안팎 [추론]
-- FireLite 적용 범위: `Resources.FindObjectsOfTypeAll<Court>()`의 `_fireVfx` 아래 렌더러 재질 중 셰이더 이름이 원본인 것. 법정 프리팹이 다시 로드될 수 있어 켜져 있는 동안 1초마다 다시 모음
+- 적용 범위: `Resources.FindObjectsOfTypeAll<Court>()` 아래(그리고 `_fireVfx` 아래) 렌더러 재질 중 셰이더 이름이 원본인 것. 법정 프리팹이 다시 로드될 수 있어 켜져 있는 동안 1초마다 다시 모음 (`CourtShaders`)
+
+**CourtLite 변형** (원본 URP Lit ForwardLit의 D3D11 변형 80개 가운데 법정 재질이 고르는 것과 같은 키워드의 3개 + 정점 1개만 남김)
+
+| 정의 | 원본 변형 키워드 (공통: `_MAIN_LIGHT_SHADOWS _ADDITIONAL_LIGHTS _ADDITIONAL_LIGHT_SHADOWS _REFLECTION_PROBE_BLENDING _REFLECTION_PROBE_BOX_PROJECTION _SCREEN_SPACE_OCCLUSION`) | 재질 | 텍스처(레지스터/샘플러) | 명령어·텍스처 읽기 (원본 → LXIUM) |
+|---|---|---|---|---|
+| `CL_VS` | `_MAIN_LIGHT_SHADOWS _ADDITIONAL_LIGHTS _NORMALMAP` (vs_4_0) | 전부 | — | 원본 출력에서 그림자 좌표·SH 정점값을 뺌 |
+| `CL_MAPS` | 공통 + `_NORMALMAP _METALLICSPECGLOSSMAP _OCCLUSIONMAP` | Court_Floor, Court_Step | 반사 큐브 t0/s1, `_BaseMap` t3/s4, `_BumpMap` t4/s5, `_OcclusionMap` t5/s6, `_MetallicGlossMap` t6/s7 | 약 300·9회 → 137·5회 |
+| `CL_CUTOUT` | 공통 + `_ALPHATEST_ON` | Court_Wall (3종) | t0/s1, t3/s4 | 약 300·7회 → 119·2회 |
+| `CL_PREMUL` | 공통 + `_SURFACE_TYPE_TRANSPARENT _ALPHAPREMULTIPLY_ON` | Court_Stand | t0/s0, t3/s3 | 약 270·6회 → 117·2회 |
+
+- 원본 변형이 모두 그림자·SSAO 키워드를 가진 것만 빌드에 남아 있어, 그림자·SSAO가 없는 지금도 원본은 그림자 맵(메인 1 + 라이트마다 1)·SSAO 텍스처를 읽고 반사 프로브 블렌딩·박스 투영(큐브 3회)을 계산함 [관찰: 디스어셈블]
+- 상수 배치 (픽셀): `$Globals` b0(`_GlossyEnvironmentCubeMap_HDR` 32, `_GlobalMipBias` 64, `_AdditionalLightsCount` 160, `_WorldSpaceCameraPos` 336), `AdditionalLights` b1(위치 0, 색 4096, 감쇠 8192, 스포트 방향 12288, 각 256개), `UnityPerDraw` b2(`unity_LightData` 176, `unity_LightIndices` 192, `unity_SHAr~SHC` 400~496), `UnityPerMaterial` b3(`_BaseColor` 48, `_Cutoff` 96, `_Smoothness` 100, `_Metallic` 104, `_BumpScale` 108, `_OcclusionStrength` 116, `_Surface` 136). 정점: `$Globals` b0(`unity_MatrixVP` 1248), `UnityPerDraw` b1(`unity_ObjectToWorld` 0, `unity_WorldToObject` 64, `unity_WorldTransformParams` 144), `UnityPerMaterial` b2(`_BaseMap_ST` 0)
+- 빠진 패스(그림자·깊이·DepthNormals·모션 벡터): 법정에 그림자 라이트가 없고 SSAO 기본 끔이라 쓰이지 않음. SSAO를 켜면 법정이 DepthNormals에 안 그려져 AO가 법정에 생기지 않음(지금도 화면 영향 0)
+- 화면 차이 예상: 반사 프로브가 없어(mahosaba.md 6.2) 빠진 항은 원본에서도 0 또는 1 → 같아야 함. 확인은 실험실 스크린샷으로 [추론]
 
 UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p 화면에 쿼드 몇 장 + UI라서 가능성이 높다 [추론]. 재판 장면은 Iris Xe 768p 창 모드에서 A+B1+B2+B4+B5로 115fps (mahosaba.md 10장 3차), 4차에서 B10·B11·B13·C3 조합으로 768p 154 fps. **1080p 전체 화면**(5차): 0.2.1 기본 124 fps, SSAO 끔(0.2.2 기본) 160 fps. 남은 6.2 ms ≈ 무대 카메라 2.4 + 메인 카메라·UI·CPU 3.8 [관찰·추론: 10장 5차].
 
@@ -91,21 +106,19 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 
 1. 설정 `Debug.RenderLab = true`
 2. 캐릭터가 나오는 장면(대화) 또는 재판 장면에서 **F10**
-3. 프리셋 10개를 8초씩(안정 2초 + 측정 6초, 약 1분 20초). 매번 설정값으로 되돌린 뒤 하나만 바꿈 (0.2.3. 0.2.2는 12개, 0.2.1은 11개, 0.2.0은 14개, 0.1.x는 누적 7단계). 세 번 이상 같은 결론이 난 SSAO 품질·원본 불 비교는 0.2.3에서 뺌
+3. 프리셋 7개를 8초씩(안정 2초 + 측정 6초, 약 1분). 매번 설정값으로 되돌린 뒤 하나만 바꿈 (0.3.0. 0.2.3은 10개, 0.2.2는 12개, 0.2.1은 11개, 0.2.0은 14개, 0.1.x는 누적 7단계). 결론이 난 실험(SSAO 품질, 원본 불, 반 프레임, 해상도 75%, 메인 후처리, 화면 컬링)은 뺌
 
    | 프리셋 | 내용 |
    |---|---|
    | `00_original` | 모든 최적화 끔, 무대 RT 1920x1080 |
    | `01_current` | 지금 설정 (기준) |
    | `02_noStage` | 진단: 무대 카메라를 모두 멈춤(RT는 마지막 그림). 남는 시간 = 메인 카메라·UI·캐릭터·CPU |
-   | `03_noUI` | 진단: 무대 화면 캔버스를 뺀 루트 캔버스를 모두 `enabled = false` (끝나면 끈 것만 다시 켬). `01`과 차이 = UI(대사창·메뉴·글자·TrueShadow) 비용 |
-   | `04_screenCullOff` | 알파 0 무대 화면 컬링을 끔(0.2.2 동작). `01`과 차이 = 컬링 효과 |
-   | `05_stageHalfRate` / `06_stageRes75` / `07_mainPostOff` | B6 / 무대 RT 화면의 75% / 메인 카메라 후처리 끔 (무대 후처리는 B11 규칙대로 다시 켜짐) |
-   | `08_fireOn` | 지금 법정의 `_fireVfx`를 잠시 켬, 설정의 불 셰이더 (게임 상태·조명 색은 그대로, 끝나면 원래대로) |
-   | `09_current` | 기준을 다시 잼. `01`과 차이 = 발열·잡음 → 두 기준을 시간에 따라 보간해 Δ를 냄 |
+   | `03_courtHidden` | 진단: 지금 법정의 Lit 재질 렌더러(바닥·계단·벽·단상)를 잠시 끔. `01`과 차이 = CourtLite가 줄일 수 있는 상한. 로그에 `courtRenderers`(끈 수) |
+   | `04_courtLite` / `05_courtOriginal` | CourtLite 켬 / 끔 (설정과 같은 쪽은 기준과 같음) |
+   | `06_current` | 기준을 다시 잼. `01`과 차이 = 발열·잡음 → 두 기준을 시간에 따라 보간해 Δ를 냄 |
 
 4. 측정 중에는 프레임 제한·VSync를 끔. 결과는 `BepInEx/LXIUM_mahosaba/<시각>/lab.txt`와 프리셋별 스크린샷(JPG)
-5. 기록 값: fps, 프레임 시간 avg·p50·p95·p99·max, 프레임당 카메라 렌더 수, `layerDraw`/`layerSkip`(B1), `copyDraw`/`copySkip`(B2), `stageSkip`(B4·B6), `modCpu`(모드가 프레임당 쓰는 메인 스레드 시간: 패치·Host·카메라 콜백, 0.2.3), 불 프리셋은 `fire`(렌더러 수)·`fireVisible`(카메라에 보이는 수)
+5. 기록 값: fps, 프레임 시간 avg·p50·p95·p99·max, 프레임당 카메라 렌더 수, `layerDraw`/`layerSkip`(B1), `copyDraw`/`copySkip`(B2), `stageSkip`(B4·B6), `modCpu`(모드가 프레임당 쓰는 메인 스레드 시간: 패치·Host·카메라 콜백, 0.2.3)
 6. 스크린샷을 `01_current`와 비교해 화면 변화를 확인. UI 장식·캐릭터가 움직이므로 법정 가운데(캐릭터·글자 없는 곳)만 잘라 비교
 7. `FrameTimingManager`는 이 빌드에서 켜져 있다고 나오지만 D3D11에서 값이 오지 않아(4·5차) 0.2.2에서 기록을 뺌
 7. `Character.Resolution`은 액터 생성 때 적용되므로 실험실 안에서 바뀌지 않음. 값을 바꾸고 다시 실행해 비교
@@ -125,6 +138,7 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 | `Stage.MsaaOff` | true (0.2.1) | 측정 장면에서 없음 (FXAA가 다듬음) |
 | `Stage.PostOff` | true (0.2.1) | 거의 없음 (법정에 FXAA가 두 번 → 한 번, 평균 1.7/255). 게임 옵션에서 후처리를 끄면 무대 후처리는 켜진 채로 둠 |
 | `Stage.HalfRate` | false | 카메라가 멈춰 있을 때 불·캐릭터 변화가 반 박자 늦음 |
+| `Stage.CourtLite` | false (0.3.0, 측정 대기) | 원본과 같아야 함 (그림자·SSAO·반사 프로브가 원래 없는 법정). D3D11 전용 |
 | `Stage.FireLite` | true (0.2.1) | 불 쿼드가 벽·바닥과 닿는 경계가 또렷해질 수 있음. D3D11 전용 |
 | `Debug.RenderLab` | false | — |
 
@@ -134,7 +148,7 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 
 ## 5. 미확인
 
-- 무대 카메라 2.53 ms(1080p)의 내역. C4(CourtLite)가 줄일 수 있는 양
+- CourtLite의 실제 절감과 화면 일치 여부 (0.3.0 실험실 `03`·`04`·`05`)
 - B2의 해시가 놓치는 입력이 있는지 (전환 중 시간 기반 효과 등). 놓쳐도 1초 안에 다시 그림
 - B3 적용 시 확대 연출의 화질
 - C3을 실제 불 연출 장면에서 본 화질 (실험실은 지금 장면의 불을 강제로 켜서 봄)
