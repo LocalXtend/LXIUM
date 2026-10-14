@@ -43,7 +43,8 @@
 | B12 | 깊이 프라이밍 | SSAO 프리패스 깊이로 불투명 패스를 `ZTest Equal`. 실제 렌더러(`asset.scriptableRenderer`)의 `depthPrimingMode`를 무대 카메라만 `Forced`로 바꿔 실험 | Render Fast | **제거** (0.2.1. 4차: MSAA 끔 위에서 추가 이득 0) |
 | B13 | SSAO 가볍게 | `ScreenSpaceAmbientOcclusion.m_Settings`: `Downsample = true`, `Samples = Low`, `BlurQuality = Low`. 매 프레임 설정을 읽으므로 바로 적용 | Spatial Resolution | `Urp.Ssao = StageLite` (4차 768p: -1.24 ms, 5차 1080p: 원래 품질 대비 -3.3 ms. 법정 화소 차이 0) |
 | B14 | SSAO 끄기 + 깊이 | SSAO를 끄면 무대 카메라에 깊이 텍스처가 없어져 원본 불 셰이더의 깊이 페이드가 깨질 수 있으므로 무대 카메라 `requiresDepthOption = On` (MSAA 깊이 복사만 함) | — | **기본** `Urp.Ssao = Off` (0.2.2). FireLite를 쓰는 중이면 깊이를 요청하지 않음 (0.2.1부터). 4차: 깊이 요청 포함 -0.73 ms로 Lite보다 느렸음 → 5차 1080p(깊이 요청 없음): Lite 대비 **-1.80 ms**, 법정 화소 차이 0 |
-| B15 | 법정 건물 캐시 | 무대 카메라 한 대만 그릴 때, 바닥·벽·계단(CourtLite 불투명·알파 테스트 재질) 렌더러를 레이어 31로 옮기고(스포트라이트 `cullingMask`·무대 카메라 마스크에 31 추가) 전용 카메라(`CopyFrom` + 마스크 31)로 그 레이어만 같은 크기 RT에 그려 둠. 무대 카메라는 같은 렌더러를 `LXIUM/CourtCached` 사본 재질로 그림: 캐시를 `_OcclusionMap`(t5) 자리에 넣고 픽셀 위치로 `Load` → 조명 계산 없음, 깊이·알파 테스트(벽 0.5 고정)는 그대로라 캐릭터·단상·불과의 앞뒤가 같음. 카메라 위치·회전·FOV·RT 크기·스포트라이트(색·세기·범위·각도·위치)가 바뀌거나 3초가 지나면 다시 그림. 캐릭터는 `Graphics.DrawMesh`로 Default 레이어에 그려져 레이어로만 캐시에서 뺄 수 있음. 투명 단상은 캐릭터 위에 섞여야 해서 캐시하지 않음 | Temporal Frame Reprojection (정확한 재사용) | 실험 `Stage.CourtCache` (0.4.0, 기본 끔. 10차: 화면 화소 차이 0이지만 법정 찾기를 매 프레임 해 모드 CPU +2.6 ms → 0.4.1에서 1초에 한 번으로 고침. 11차: -0.11 ms, 잡음 수준이라 기본 끔 유지) |
+| B15 | 법정 건물 캐시 | 무대 카메라 한 대일 때 바닥·벽·계단의 조명 결과를 같은 시점의 RT에 그려 두고, 무대 카메라는 그 색을 픽셀 위치로 `Load`만 하는 `LXIUM/CourtCached` 사본 재질로 그림 (레이어 31 + 전용 카메라) | Temporal Frame Reprojection (정확한 재사용) | **지움 (0.5.0)**. 10차: 화면 화소 차이 0, 11차: -0.11 ms로 같은 설정끼리의 흔들림(0.10 ms)과 같음. CourtLite가 이미 조명을 가볍게 해 남은 몫이 작고, 깊이·래스터·후처리는 그대로라서 [추론] |
+| B16 | 법정 바뀔 때만 그리기 | 무대 카메라가 보는 것이 그대로인 프레임은 카메라를 끄고 RT의 지난 그림을 RawImage가 그대로 보여 줌 (B6·`02_noStage`와 같은 방식). 장면 버전을 두고, 바뀐 프레임마다 1 증가. 카메라마다 마지막으로 그린 버전이 지금과 같고 1초가 안 지났으면 건너뜀. 바뀜 판단: ① 카메라 위치·회전·FOV(안 그리는 동안 움직였어도 다시 그릴 때까지 무효) ② 캐릭터 그림 내용: `RenderToTexture`가 실제로 새 그림을 만들 때(입력 해시가 바뀜, 추적 못 하는 RT, `Character.ChangeOnly` 꺼짐) `Dirty`. 1초 안전 갱신은 알리지 않음 ③ 캐릭터 위치·크기·회전·불투명도: `RenderToTexture` 앞에서 액터마다 (포인터, `Opacity`, `localToWorldMatrix`) 해시를 순서 무관하게 더해 지난 프레임 합과 비교 (사라진 액터도 잡힘) ④ 법정: `CourtShaders`가 1초마다 모을 때 보이는 법정의 렌더러(+`_fireVfx`)·조명 목록을 받고, 매 프레임 렌더러 켜짐·`localToWorldMatrix`, 조명 켜짐·색·세기·범위·각도·변환을 해시. `MeshRenderer`가 아니거나(파티클 등) Lit·CourtLite가 아닌 셰이더(불 등)를 쓰는 렌더러가 켜져 있으면 매 프레임 그림 ⑤ RT 크기·MSAA, 무대 후처리·깊이, 법정 셰이더 교체, 실험실 설정 변경 → `Dirty`. 파괴된 렌더러를 만나면 다음 수집까지 매 프레임 그림. 로그 `stage court: n renderers, n lights, moving: 종류=수` | Temporal Frame Reprojection (카메라 단위 정확한 재사용) | 실험 `Stage.ChangeOnly` (0.5.0, 기본 끔). 11차 상한(`02_noStage`) -1.84 ms. 알려진 빈틈: 법정 밖에서 무대 카메라에 보이는 연출(스폰 효과 등)은 감지하지 않아 최대 1초 늦을 수 있음 |
 | B7 | 제로 카피 액터 | `TransitionalSpriteRenderer`의 RT 단계를 없애고 `DrawMesh`에서 전환 셰이더로 화면에 바로 그림 (전환·색·블러를 한 패스로) | Render Fast | 후보 (C1 필요할 수 있음) |
 | B8 | 절차적 레이어 합성 | 캐릭터의 `renderCamera`를 비워 Naninovel 절차적 경로(CommandBuffer)로. URP 카메라 1회가 DrawMesh 몇 개로 바뀜. 스텐실 마스크 재질 호환 확인 필요 | Render Fast | 후보 |
 | B9 | 숨은 UI 정지 | 캔버스만 꺼진 화면의 TrueShadow·애니메이션 컴포넌트를 끔 | — | 후보 (CPU 측정 후) |
@@ -67,7 +68,7 @@ B1·B2가 켜지면 대사만 넘기는 장면에서 화면 밖 렌더는 거의
 4. 텍스처·샘플러·상수의 위치는 `m_ParsedForm`의 메타데이터대로 엔진이 채우므로, HLSL에서 레지스터(`t1~t5`, `s2~s6`)와 상수 버퍼 오프셋(`$Globals`의 `_TimeParameters` 304, `unity_MatrixVP` 1248, `UnityPerMaterial` 176바이트 배치)을 원본과 같게 맞춤
 5. 첫 패스(화면 그리기)와 D3D11만 남기고 나머지 패스·Vulkan·OpenGL 코드는 뺌 → 번들에 원본 코드가 없음. 타입 트리도 남은 두 객체(Shader, AssetBundle) 것만
 6. 이름 `LXIUM/FireLite`·`LXIUM/CourtLite`, 번들 이름 `lxium_mahosaba`, 내부 파일 `CAB-<md5("LXIUM_mahosaba")>` (게임 번들과 같은 CAB 이름이면 Unity가 이미 로드된 번들로 보고 거부)
-7. 결과 `res/lxium_mahosaba.bundle`(약 30 KB, 셰이더 3개)를 DLL에 포함. 같은 원본에서 두 번째로 만드는 셰이더(CourtCached)는 원본 객체를 복제해 새 경로 ID(이름의 md5)로 저장. 규칙에 새 키워드를 주면 변형의 키워드(`m_KeywordIndices`와 서브프로그램 안 키워드 목록)를 바꿔, 원본에 없던 조합(맵 변형 바인딩 + 알파 테스트 키워드)도 만듦. 실행 중 `AssetBundle.LoadFromMemory` → `LoadAllAssetsAsync(Shader)` → `hideFlags = DontUnloadUnusedAsset`
+7. 결과 `res/lxium_mahosaba.bundle`(29 KB, 셰이더 2개)를 DLL에 포함. 0.4.x의 CourtCached(같은 원본 복제·키워드 바꾸기)는 0.5.0에서 B15와 함께 지움 → 0.3.2 번들과 바이트까지 같음. 실행 중 `AssetBundle.LoadFromMemory` → `LoadAllAssetsAsync(Shader)` → `hideFlags = DontUnloadUnusedAsset`
 
 **셰이더**
 
@@ -110,19 +111,18 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 
 1. 설정 `Debug.RenderLab = true`
 2. 캐릭터가 나오는 장면(대화) 또는 재판 장면에서 **F10**
-3. 프리셋 7개를 8초씩(안정 2초 + 측정 6초, 약 1분). 매번 설정값으로 되돌린 뒤 하나만 바꿈 (0.4.0. 0.3.x도 7개, 0.2.3은 10개, 0.2.2는 12개, 0.2.1은 11개, 0.2.0은 14개, 0.1.x는 누적 7단계). 결론이 난 실험(SSAO 품질, 원본 불, 반 프레임, 해상도 75%, 메인 후처리, 화면 컬링, CourtLite)은 뺌
+3. 프리셋 6개를 8초씩(안정 2초 + 측정 6초, 약 50초). 매번 설정값으로 되돌린 뒤 하나만 바꿈 (0.5.0. 0.4.x·0.3.x는 7개, 0.2.3은 10개, 0.2.2는 12개, 0.2.1은 11개, 0.2.0은 14개, 0.1.x는 누적 7단계). 결론이 난 실험(SSAO 품질, 원본 불, 반 프레임, 해상도 75%, 메인 후처리, 화면 컬링, CourtLite, 건물 캐시, 빠른 감지)은 뺌
 
    | 프리셋 | 내용 |
    |---|---|
    | `00_original` | 모든 최적화 끔, 무대 RT 1920x1080 |
    | `01_current` | 지금 설정 (기준) |
    | `02_noStage` | 진단: 무대 카메라를 모두 멈춤(RT는 마지막 그림). 남는 시간 = 메인 카메라·UI·캐릭터·CPU |
-   | `03_courtCache` / `04_courtCacheOff` | B15 켬 / 끔 (설정과 같은 쪽은 기준과 같음). 로그에 `cacheRefresh`(프레임당 캐시 다시 그리기) |
-   | `05_fastDetectOff` | 예전 변화 감지(모든 드로어를 매 프레임 해시). `01`과 `modCpu` 차이 = 빠른 감지 효과 |
-   | `06_current` | 기준을 다시 잼. `01`과 차이 = 발열·잡음 → 두 기준을 시간에 따라 보간해 Δ를 냄 |
+   | `03_stageChangeOnly` / `04_stageChangeOnlyOff` | B16 켬 / 끔 (설정과 같은 쪽은 기준과 같음). 둘의 차이 = 효과, `02`가 상한. `stageSkip`이 2에 가까울수록 많이 건너뜀(카메라 2대) |
+   | `05_current` | 기준을 다시 잼. `01`과 차이 = 발열·잡음 → 두 기준을 시간에 따라 보간해 Δ를 냄 |
 
 4. 측정 중에는 프레임 제한·VSync를 끔. 결과는 `BepInEx/LXIUM_mahosaba/<시각>/lab.txt`와 프리셋별 스크린샷(JPG)
-5. 기록 값: fps, 프레임 시간 avg·p50·p95·p99·max, 프레임당 카메라 렌더 수, `layerDraw`/`layerSkip`(B1), `copyDraw`/`copySkip`(B2), `stageSkip`(B4·B6), `modCpu`(모드가 프레임당 쓰는 메인 스레드 시간: 패치·Host·카메라 콜백·화면 패널, 0.2.3), `cacheRefresh`(B15, 0.4.0)
+5. 기록 값: fps, 프레임 시간 avg·p50·p95·p99·max, 프레임당 카메라 렌더 수, `layerDraw`/`layerSkip`(B1), `copyDraw`/`copySkip`(B2), `stageSkip`(B4·B6), `modCpu`(모드가 프레임당 쓰는 메인 스레드 시간: 패치·Host·카메라 콜백·화면 패널, 0.2.3)
 6. 스크린샷을 `01_current`와 비교해 화면 변화를 확인. UI 장식·캐릭터가 움직이므로 법정 가운데(캐릭터·글자 없는 곳)만 잘라 비교
 7. `FrameTimingManager`는 이 빌드에서 켜져 있다고 나오지만 D3D11에서 값이 오지 않아(4·5차) 0.2.2에서 기록을 뺌
 8. 측정 중 화면 패널(PgUp·PgDn)은 켜 둘 수 있음: 플래그 패널에 실험실이 바꾸는 값이 그대로 보이고, 스크린샷을 찍는 프레임에는 숨김
@@ -146,7 +146,7 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 | `Stage.CourtLite` | true (0.3.2) | 원본과 같아야 함 (그림자·SSAO·반사 프로브가 원래 없는 법정). D3D11 전용 |
 | `Stage.FireLite` | true (0.2.1) | 불 쿼드가 벽·바닥과 닿는 경계가 또렷해질 수 있음. D3D11 전용 |
 | `Character.FastDetect` | true (0.4.0) | 놓친 변화는 최대 3프레임 늦음 |
-| `Stage.CourtCache` | false (0.4.0, 측정 대기) | 같아야 함 (같은 시점·같은 셰이더로 그린 색을 픽셀 그대로 읽음). CourtLite·D3D11 필요, 분할 화면에서는 꺼짐 |
+| `Stage.ChangeOnly` | false (0.5.0, 측정 대기) | 감지한 변화는 같은 프레임에 반영. 감지하지 못한 변화(법정 밖 연출 등)는 최대 1초 늦음. 불이 켜져 있으면 매 프레임 그림 |
 | `Debug.RenderLab` | false | — |
 
 0.2.1 기본값은 4차 측정으로 정함. 이전 버전의 설정 파일에는 옛 기본값(false/StageOnly)이 적혀 있어 그대로 남으므로, 업데이트한 사용자는 직접 바꿔야 함 (BepInEx는 파일에 있는 값을 우선)
