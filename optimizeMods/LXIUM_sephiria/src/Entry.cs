@@ -18,6 +18,7 @@ namespace LXIUM_sephiria
             Object.DontDestroyOnLoad(_host);
             if (config.diagnostics) _host.AddComponent<Diagnostics>();
             if (config.sendMoneyScanFix) _host.AddComponent<SendMoneyScanFix>();
+            if (config.renderLab) _host.AddComponent<RenderLab>();
         }
 
         protected override void OnModUnloaded()

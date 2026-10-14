@@ -47,7 +47,6 @@ namespace LXIUM_sephiria
             _lastGcCount = GC.CollectionCount(0);
 
             // Start는 AddOnLoader.LoadAll이 끝난 뒤 첫 프레임에 불리므로 모든 모드가 목록에 있다
-            if (File.Exists(LogPath) && new FileInfo(LogPath).Length > MaxLogBytes) File.Delete(LogPath);
             Write(Tag + "session mods=" + string.Join(", ", AddOnLoader.LoadedMods.Select(m => m.Metadata.modName + " " + m.Metadata.modVersion)));
             LogEnvironment();
             LogPipeline();
@@ -126,17 +125,7 @@ namespace LXIUM_sephiria
 
         static RenderPipelineAsset Asset() => GraphicsSettings.currentRenderPipeline;
 
-        // Player.log는 실행할 때마다 덮어써지므로 모드 폴더의 파일에 세션을 이어 쓴다
-        static readonly string LogPath = Path.Combine(Path.GetDirectoryName(typeof(Diagnostics).Assembly.Location), "LXIUM_diag.log");
-        const long MaxLogBytes = 5 * 1024 * 1024;
-
-        static void Write(string line)
-        {
-            Debug.Log(line);
-            try { File.AppendAllText(LogPath, DateTime.Now.ToString("MM-dd HH:mm:ss ") + line + "\n"); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
+        static void Write(string line) => Log.Write(line);
 
         static void LogEnvironment()
         {

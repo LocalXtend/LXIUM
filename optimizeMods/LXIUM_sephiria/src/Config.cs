@@ -10,6 +10,7 @@ namespace LXIUM_sephiria
     {
         public bool diagnostics = true;
         public bool sendMoneyScanFix = true;
+        public bool renderLab = false;
 
         public static Config Load()
         {
