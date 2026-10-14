@@ -1,6 +1,8 @@
 # Sephiria fresh baseline / official mod integration
 
-Date: 2026-10-14. This investigation uses current installed artifacts only; previous Sephiria docs, source and Git history were not consulted. No optimization implementation, release or runtime benchmark is included. Paired human document: `../human/sephiria.md`; rendering: `sephiria-render.md`.
+Baseline: 2026-10-14. This investigation used current installed artifacts only; previous Sephiria docs, source and Git history were not consulted. Implementation update2026-10-15: experimental mod1.0.0/package/deployment added; no runtime FPS acceptance. Paired human document: `../human/sephiria.md`; implementation/F10 details: `sephiria-render.md`.
+
+Current Entry in namespaceLXIUM.Sephiria inherits HorayModBase; OnModLoaded creates an owned persistent MonoBehaviour and OnModUnloaded destroys it. SDK10 compiles netstandard2.1 against installed Unity Mono references. `none` package uses official AddOns folder and explicit metadata.dllFile/entryClass; no BepInEx loader added. A dynamic Harmony bridge reuses loaded Harmony before bundled2.4.2/net472. Config created at runtime, results retained in LastComparison and timestamped comparisons directory, not shipped in addon. Runtime headless startup did not reach LXIUM load verification; package validity is separate from runtime acceptance.
 
 ## Identity and authority
 

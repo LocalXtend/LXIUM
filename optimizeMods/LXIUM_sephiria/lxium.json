@@ -2,15 +2,8 @@
   "schema": 1,
   "id": "LXIUM_sephiria",
   "name": "LXIUM Sephiria",
-  "version": "0.3.0",
-  "description": "세피리아 최적화 (게임 내장 AddOns 로더 사용)",
-  "game": {
-    "id": "sephiria",
-    "name": "Sephiria",
-    "exe": "Sephiria.exe",
-    "steamAppId": 2436940
-  },
-  "variants": {
-    "none": {}
-  }
+  "version": "1.0.0",
+  "description": "세피리아 렌더링 최적화와 F10 비교 프로파일링",
+  "game": { "id": "sephiria", "name": "Sephiria", "exe": "Sephiria.exe", "steamAppId": 2436940 },
+  "variants": { "none": {} }
 }

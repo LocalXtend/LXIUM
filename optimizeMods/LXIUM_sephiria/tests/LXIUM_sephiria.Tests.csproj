@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>LXIUM_sephiria.Tests</AssemblyName>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Sephiria</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LXIUM_sephiria.csproj" />
+    <Reference Include="$(GameDir)\Sephiria_Data\Managed\Unity*.dll" />
+    <Reference Include="$(GameDir)\Sephiria_Data\Managed\Assembly-CSharp.dll" />
+    <Reference Include="$(GameDir)\Sephiria_Data\Managed\Newtonsoft.Json.dll" />
+  </ItemGroup>
+</Project>

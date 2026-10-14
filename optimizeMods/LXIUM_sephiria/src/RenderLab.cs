@@ -1,261 +1,211 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
+using Unity.Profiling;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using UnityEngine.SceneManagement;
 
-namespace LXIUM_sephiria
+namespace LXIUM.Sephiria
 {
-    // 렌더 실험실 (docs/ai/sephiria-render.md 3장).
-    // 실행마다 게임 월드(MainWorld)에 처음 들어가고 20초 뒤 한 번 동작한다.
-    // 1) 화면 구성(캔버스 렌더 모드, 스프라이트 PPU, 화면을 크게 덮는 렌더러, 2D 조명)을 기록하고
-    // 2) 렌더 설정 후보를 하나씩 적용해 프레임 통계·스크린샷·에러 로그를 남긴 뒤 원래 설정으로 되돌린다.
-    sealed class RenderLab : MonoBehaviour
+    internal static class RenderLab
     {
-        const string Tag = "[LXIUM] lab ";
-        const string WorldScene = "MainWorld";
-        const float StartDelay = 20f, Settle = 2f, Sample = 6f;
-        // 기본 orthographicSize 5.625 = 360/64 → 32 PPU 기준 세로 360px 픽셀아트로 추정
-        const float ArtHeight = 360f;
+        const double SettleSeconds = 2;
+        public static bool Running { get; private set; }
+        static Coroutine coroutine;
+        static ComparisonResult result;
+        static RenderOptions saved;
+        static int vsync, limit;
+        static string scene;
+        static Camera camera;
+        static ProfilerRecorder draws, batches, triangles, gc;
+        static readonly FrameTiming[] timings = new FrameTiming[1];
+        static readonly string[] Names = { "01_original", "02_light_only", "03_idle_passes_only", "04_static_lights_only",
+            "05_compatible_batch_only", "06_world_upscale_only", "07_world_upscale_shader", "08_all", "09_configured", "10_original_repeat" };
 
-        static readonly FieldInfo RendererList = typeof(UniversalRenderPipelineAsset).GetField("m_RendererDataList", BindingFlags.Instance | BindingFlags.NonPublic);
-        static readonly FieldInfo LightScale = typeof(Renderer2DData).GetField("m_LightRenderTextureScale", BindingFlags.Instance | BindingFlags.NonPublic);
-
-        readonly List<float> _frameTimes = new List<float>(4096);
-        string _status;
-        bool _started;
-        int _errors;
-        string _firstError;
-
-        void Start()
+        public static void Start(Host host)
         {
-            SceneManager.sceneLoaded += OnSceneLoaded;
-            if (SceneManager.GetActiveScene().name == WorldScene) Begin();
-        }
-
-        void OnDestroy() => SceneManager.sceneLoaded -= OnSceneLoaded;
-
-        void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            if (scene.name == WorldScene) Begin();
-        }
-
-        void Begin()
-        {
-            if (_started) return;
-            _started = true;
-            StartCoroutine(Run());
-        }
-
-        void OnGUI()
-        {
-            if (_status != null) GUI.Box(new Rect(10, 10, 720, 26), _status);
-        }
-
-        IEnumerator Run()
-        {
-            for (float left = StartDelay; left > 0; left -= Time.unscaledDeltaTime)
+            if (Running) return;
+            if (GameCamera.Instance == null || GameCamera.Instance.Camera == null || !GameCamera.Instance.Camera.isActiveAndEnabled)
+            { host.Status = "F10: 게임 장면과 메인 카메라가 준비된 후 시작하세요."; return; }
+            saved = host.Config.Options.Copy(); saved.Validate();
+            camera = GameCamera.Instance.Camera;
+            scene = camera.gameObject.scene.name;
+            vsync = QualitySettings.vSyncCount; limit = Application.targetFrameRate;
+            string directory = Path.Combine(Host.ModDirectory, "comparisons", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"));
+            result = new ComparisonResult
             {
-                _status = "LXIUM 렌더 실험 " + Mathf.CeilToInt(left) + "초 뒤 시작 — 실험 동안 한 자리에 가만히 서 있어 주세요";
-                yield return null;
-            }
-
-            var gameCamera = GameCamera.Instance;
-            var cam = gameCamera != null ? gameCamera.Camera : Camera.main;
-            var urp = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-            var r2d = (RendererList?.GetValue(urp) as ScriptableRendererData[])?.FirstOrDefault() as Renderer2DData;
-            if (cam == null || urp == null)
-            {
-                Log.Write(Tag + "카메라 또는 URP 에셋이 없어 중단");
-                _status = null;
-                yield break;
-            }
-
-            Log.Write(Tag + "start screen=" + Screen.width + "x" + Screen.height + " " + Screen.fullScreenMode
-                + " gfx=" + SystemInfo.graphicsDeviceType + " (" + SystemInfo.graphicsDeviceName + ")");
-            Inventory(cam);
-
-            var camData = cam.GetUniversalAdditionalCameraData();
-            var original = new Settings(urp, r2d, cam, camData);
-            var presets = Presets(urp, r2d, cam, camData);
-            var dir = Path.Combine(Log.ModDir, "bench", DateTime.Now.ToString("MMdd_HHmmss"));
-            Directory.CreateDirectory(dir);
-            Application.logMessageReceived += OnLogMessage;
-
-            for (int i = 0; i < presets.Count && cam != null; i++)
-            {
-                original.Apply();
-                presets[i].Value();
-                _status = "LXIUM 렌더 실험 " + (i + 1) + "/" + presets.Count + " (" + presets[i].Key + ") — 그대로 서 있어 주세요";
-                yield return new WaitForSecondsRealtime(Settle);
-
-                _frameTimes.Clear();
-                _errors = 0;
-                _firstError = null;
-                for (float t = 0; t < Sample; t += Time.unscaledDeltaTime)
-                {
-                    _frameTimes.Add(Time.unscaledDeltaTime);
-                    yield return null;
-                }
-                Log.Write(Tag + Stats(presets[i].Key, urp, r2d) + (_errors > 0 ? " errors=" + _errors + " first=" + _firstError : ""));
-
-                // 안내 문구가 없는 프레임을 찍는다
-                _status = null;
-                yield return null;
-                ScreenCapture.CaptureScreenshot(Path.Combine(dir, i.ToString("00") + "_" + presets[i].Key + ".png"));
-                yield return null;
-                yield return null;
-            }
-
-            Application.logMessageReceived -= OnLogMessage;
-            original.Apply();
-            Log.Write(Tag + "done screenshots=" + dir);
-            _status = "LXIUM 렌더 실험 완료 — 원래 설정으로 돌아왔습니다";
-            yield return new WaitForSecondsRealtime(4f);
-            _status = null;
-        }
-
-        static List<KeyValuePair<string, Action>> Presets(UniversalRenderPipelineAsset urp, Renderer2DData r2d, Camera cam, UniversalAdditionalCameraData camData)
-        {
-            void Scale(float scale, UpscalingFilterSelection filter)
-            {
-                urp.upscalingFilter = filter;
-                urp.renderScale = Mathf.Clamp(scale, 0.1f, 1f);
-            }
-            float pixel1 = ArtHeight / Screen.height, pixel2 = 2f * ArtHeight / Screen.height;
-
-            var list = new List<KeyValuePair<string, Action>>
-            {
-                new KeyValuePair<string, Action>("base", () => { }),
-                new KeyValuePair<string, Action>("fsr75", () => Scale(0.75f, UpscalingFilterSelection.FSR)),
-                new KeyValuePair<string, Action>("fsr50", () => Scale(0.5f, UpscalingFilterSelection.FSR)),
-                new KeyValuePair<string, Action>("point50", () => Scale(0.5f, UpscalingFilterSelection.Point)),
-                new KeyValuePair<string, Action>("pixel1x", () => Scale(pixel1, UpscalingFilterSelection.Point)),
-                new KeyValuePair<string, Action>("pixel2x", () => Scale(pixel2, UpscalingFilterSelection.Point)),
-                new KeyValuePair<string, Action>("hdrOff", () => cam.allowHDR = false),
-                new KeyValuePair<string, Action>("postOff", () => camData.renderPostProcessing = false),
+                StartedUtc = DateTime.UtcNow.ToString("o"), Outcome = "running", Directory = directory,
+                UnityVersion = Application.unityVersion, GraphicsApi = SystemInfo.graphicsDeviceType.ToString(), Gpu = SystemInfo.graphicsDeviceName,
+                GameAssembly = typeof(HorayModBase).Module.ModuleVersionId.ToString(), Width = Screen.width, Height = Screen.height,
+                Quality = QualitySettings.GetQualityLevel(), OriginalVSync = vsync, OriginalFrameLimit = limit,
+                SectionSeconds = host.Config.SectionSeconds, SavedOptions = saved.Copy(),
+                LoadedMods = AppDomain.CurrentDomain.GetAssemblies().Where(a => a != typeof(HorayModBase).Assembly &&
+                    SafeTypes(a).Any(t => !t.IsAbstract && typeof(HorayModBase).IsAssignableFrom(t)))
+                    .Select(a => a.FullName).ToArray()
             };
-            if (r2d != null && LightScale != null)
+            try
             {
-                list.Insert(1, new KeyValuePair<string, Action>("light50", () => SetLightScale(r2d, 0.5f)));
-                list.Insert(2, new KeyValuePair<string, Action>("light25", () => SetLightScale(r2d, 0.25f)));
-                list.Add(new KeyValuePair<string, Action>("combo", () =>
+                Directory.CreateDirectory(directory);
+                Running = true;
+                draws = Recorder(ProfilerCategory.Render, "Draw Calls Count");
+                batches = Recorder(ProfilerCategory.Render, "Batches Count");
+                triangles = Recorder(ProfilerCategory.Render, "Triangles Count");
+                gc = Recorder(ProfilerCategory.Memory, "GC Allocated In Frame");
+                QualitySettings.vSyncCount = 0; Application.targetFrameRate = -1;
+                host.Config.LastComparison = result; host.SaveConfig();
+                coroutine = host.StartCoroutine(Guard(host));
+            }
+            catch (Exception e) { Cancel(host, "start failed: " + e.Message); }
+        }
+        static Type[] SafeTypes(System.Reflection.Assembly assembly)
+        {
+            try { return assembly.GetTypes(); }
+            catch { return Array.Empty<Type>(); }
+        }
+        static IEnumerator Guard(Host host)
+        {
+            var run = Run(host);
+            while (Running)
+            {
+                object current;
+                try { if (!run.MoveNext()) yield break; current = run.Current; }
+                catch (Exception e) { Finish(host, "failed: " + e.GetBaseException().Message); yield break; }
+                yield return current;
+            }
+        }
+        static ProfilerRecorder Recorder(ProfilerCategory category, string name)
+        {
+            try { return ProfilerRecorder.StartNew(category, name, 1); }
+            catch { return default; }
+        }
+        internal static RenderOptions Preset(int index, RenderOptions configured)
+        {
+            var p = configured.Copy();
+            p.LightResolution = p.IdlePasses = p.StaticLights = p.SpriteBatch = p.WorldUpscale = p.DedicatedShader = false;
+            switch (index)
+            {
+                case 1: p.LightResolution = true; break;
+                case 2: p.IdlePasses = true; break;
+                case 3: p.StaticLights = true; break;
+                case 4: p.SpriteBatch = true; break;
+                case 5: p.WorldUpscale = true; break;
+                case 6: p.WorldUpscale = p.DedicatedShader = true; break;
+                case 7: p.LightResolution = p.IdlePasses = p.StaticLights = p.SpriteBatch = p.WorldUpscale = p.DedicatedShader = true; break;
+                case 8: return configured.Copy();
+            }
+            return p;
+        }
+        static IEnumerator Run(Host host)
+        {
+            for (int index = 0; index < Names.Length; index++)
+            {
+                var requested = Preset(index, saved);
+                Pipeline.Set(requested); Pipeline.Tick();
+                host.Status = $"LXIUM F10 {index + 1}/{Names.Length}: {Names[index]}\n안정화 2초 → 측정 {result.SectionSeconds - 2}초 · F10 취소\n같은 장면·행동을 유지하세요.";
+                double until = Time.realtimeSinceStartupAsDouble + SettleSeconds;
+                while (Time.realtimeSinceStartupAsDouble < until) { if (!Check(host)) yield break; yield return null; }
+                var stats = new FrameStats();
+                var section = new SectionResult { Number = index + 1, Name = Names[index], Status = "measured", Requested = requested.Copy() };
+                section.StartSprites = UnityEngine.Object.FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None).Length;
+                section.StartLights = UnityEngine.Object.FindObjectsByType<Light2D>(FindObjectsSortMode.None).Count(l => l.isActiveAndEnabled);
+                section.StartCameraSize = camera.orthographicSize;
+                long hit = LightCache.Hits, miss = LightCache.Misses, fallback = LightCache.Fallbacks, scaled = WorldRender.Scaled,
+                    native = WorldRender.Native, skipped = Pipeline.PassSkipped;
+                int collections = Collections();
+                double cpu = 0, render = 0, gpu = 0, drawSum = 0, batchSum = 0, triangleSum = 0, gcSum = 0;
+                int cpuCount = 0, gpuCount = 0, drawCount = 0, batchCount = 0, triangleCount = 0, gcCount = 0;
+                ulong timestamp = 0;
+                double last = Time.realtimeSinceStartupAsDouble;
+                until = last + result.SectionSeconds - SettleSeconds;
+                while (Time.realtimeSinceStartupAsDouble < until)
                 {
-                    SetLightScale(r2d, 0.25f);
-                    Scale(pixel2, UpscalingFilterSelection.Point);
-                    cam.allowHDR = false;
-                }));
+                    yield return null;
+                    if (!Check(host)) yield break;
+                    double now = Time.realtimeSinceStartupAsDouble;
+                    stats.Add((now - last) * 1000); last = now;
+                    Read(draws, ref drawSum, ref drawCount); Read(batches, ref batchSum, ref batchCount);
+                    Read(triangles, ref triangleSum, ref triangleCount); Read(gc, ref gcSum, ref gcCount);
+                    FrameTimingManager.CaptureFrameTimings();
+                    if (FrameTimingManager.GetLatestTimings(1, timings) > 0 && timings[0].frameStartTimestamp != timestamp)
+                    {
+                        var timing = timings[0]; timestamp = timing.frameStartTimestamp;
+                        if (timing.cpuMainThreadFrameTime > 0) { cpu += timing.cpuMainThreadFrameTime; render += timing.cpuRenderThreadFrameTime; cpuCount++; }
+                        if (timing.gpuFrameTime > 0) { gpu += timing.gpuFrameTime; gpuCount++; }
+                    }
+                }
+                stats.Apply(section);
+                section.CpuTimingSamples = cpuCount; section.GpuTimingSamples = gpuCount;
+                section.CpuMainMs = Mean(cpu, cpuCount); section.CpuRenderMs = Mean(render, cpuCount); section.GpuMs = Mean(gpu, gpuCount);
+                section.DrawCallsPerFrame = Mean(drawSum, drawCount); section.BatchesPerFrame = Mean(batchSum, batchCount);
+                section.TrianglesPerFrame = Mean(triangleSum, triangleCount); section.GcBytesPerFrame = Mean(gcSum, gcCount);
+                section.GcCollections = Collections() - collections;
+                section.EndSprites = UnityEngine.Object.FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None).Length;
+                section.EndLights = UnityEngine.Object.FindObjectsByType<Light2D>(FindObjectsSortMode.None).Count(l => l.isActiveAndEnabled);
+                section.EndCameraSize = camera.orthographicSize;
+                section.LightHits = LightCache.Hits - hit; section.LightMisses = LightCache.Misses - miss; section.LightFallbacks = LightCache.Fallbacks - fallback;
+                section.WorldScaled = WorldRender.Scaled - scaled; section.WorldNative = WorldRender.Native - native; section.PassSkipped = Pipeline.PassSkipped - skipped;
+                section.EffectiveFeatures = Pipeline.Effective;
+                if (result.Sections.Count > 0 && result.Sections[0].AverageFps > 0)
+                    section.DeltaFpsPercent = (section.AverageFps / result.Sections[0].AverageFps - 1) * 100;
+                if (index == Names.Length - 1) section.BaselineDriftPercent = section.DeltaFpsPercent;
+                result.Sections.Add(section);
+                host.Config.LastComparison = result; host.SaveConfig();
+                Log.Info($"F10 {section.Name}: {section.AverageFps:F1} FPS, 1% {section.Low1Fps:F1}, p99 {section.P99Ms:F2}ms; {section.EffectiveFeatures}");
+                host.Status = null;
+                if (host.Config.Screenshots)
+                {
+                    yield return null; yield return new WaitForEndOfFrame();
+                    if (!Check(host)) yield break;
+                    Texture2D screenshot = null;
+                    try
+                    {
+                        screenshot = ScreenCapture.CaptureScreenshotAsTexture();
+                        section.Screenshot = section.Name + ".png";
+                        File.WriteAllBytes(Path.Combine(result.Directory, section.Screenshot), ImageConversion.EncodeToPNG(screenshot));
+                    }
+                    catch (Exception e) { Log.Warn("screenshot: " + e.Message); }
+                    finally { if (screenshot != null) UnityEngine.Object.Destroy(screenshot); }
+                }
             }
-            return list;
+            Finish(host, "completed");
         }
-
-        static void SetLightScale(Renderer2DData r2d, float scale)
+        static bool Check(Host host)
         {
-            LightScale.SetValue(r2d, scale);
-            r2d.SetDirty();
+            if (camera == null || GameCamera.Instance == null || GameCamera.Instance.Camera != camera || camera.gameObject.scene.name != scene ||
+                Screen.width != result.Width || Screen.height != result.Height || QualitySettings.GetQualityLevel() != result.Quality)
+            { Finish(host, "aborted: camera/scene/display/quality changed"); return false; }
+            return Running;
         }
-
-        // 실험 전 설정. Apply로 되돌린다
-        sealed class Settings
+        static void Read(ProfilerRecorder recorder, ref double sum, ref int count)
+        { if (recorder.Valid && recorder.Count > 0) { sum += recorder.LastValue; count++; } }
+        static double? Mean(double sum, int count) => count == 0 ? (double?)null : sum / count;
+        static int Collections() => GC.CollectionCount(0) + GC.CollectionCount(1) + GC.CollectionCount(2);
+        public static void Cancel(Host host, string reason)
         {
-            readonly UniversalRenderPipelineAsset _urp;
-            readonly Renderer2DData _r2d;
-            readonly Camera _cam;
-            readonly UniversalAdditionalCameraData _camData;
-            readonly float _scale, _lightScale;
-            readonly UpscalingFilterSelection _filter;
-            readonly bool _hdr, _post;
-
-            public Settings(UniversalRenderPipelineAsset urp, Renderer2DData r2d, Camera cam, UniversalAdditionalCameraData camData)
+            if (!Running) return;
+            var stop = coroutine; coroutine = null;
+            if (stop != null) host.StopCoroutine(stop);
+            Finish(host, "aborted: " + reason);
+        }
+        static void Finish(Host host, string outcome)
+        {
+            if (!Running) return;
+            Running = false; coroutine = null;
+            try
             {
-                _urp = urp; _r2d = r2d; _cam = cam; _camData = camData;
-                _scale = urp.renderScale;
-                _filter = urp.upscalingFilter;
-                _lightScale = r2d != null && LightScale != null ? (float)LightScale.GetValue(r2d) : -1f;
-                _hdr = cam.allowHDR;
-                _post = camData.renderPostProcessing;
+                QualitySettings.vSyncCount = vsync; Application.targetFrameRate = limit;
+                Pipeline.Set(saved); Pipeline.Tick();
             }
-
-            public void Apply()
+            finally
             {
-                _urp.renderScale = _scale;
-                _urp.upscalingFilter = _filter;
-                if (_lightScale >= 0f && !Mathf.Approximately((float)LightScale.GetValue(_r2d), _lightScale)) SetLightScale(_r2d, _lightScale);
-                if (_cam != null) _cam.allowHDR = _hdr;
-                if (_camData != null) _camData.renderPostProcessing = _post;
+                draws.Dispose(); batches.Dispose(); triangles.Dispose(); gc.Dispose();
+                result.Outcome = outcome; result.FinishedUtc = DateTime.UtcNow.ToString("o");
+                host.Config.LastComparison = result; host.SaveConfig();
+                try { File.WriteAllText(Path.Combine(result.Directory, "results.json"), Newtonsoft.Json.JsonConvert.SerializeObject(result, Newtonsoft.Json.Formatting.Indented)); }
+                catch (Exception e) { Log.Warn("comparison save: " + e.Message); }
+                host.Status = "LXIUM F10 " + outcome + "\n설정·FPS 제한·VSync 복원 완료. config.json → LastComparison\n" + result.Directory;
             }
-        }
-
-        string Stats(string name, UniversalRenderPipelineAsset urp, Renderer2DData r2d)
-        {
-            var sorted = _frameTimes.OrderBy(x => x).ToArray();
-            float Pct(float p) => sorted[Math.Min(sorted.Length - 1, (int)(sorted.Length * p))] * 1000f;
-            return name
-                + " fps=" + (sorted.Length / sorted.Sum()).ToString("0.0")
-                + " ms(p50/p95/p99)=" + Pct(0.5f).ToString("0.0") + "/" + Pct(0.95f).ToString("0.0") + "/" + Pct(0.99f).ToString("0.0")
-                + " scale=" + urp.renderScale.ToString("0.###") + " filter=" + urp.upscalingFilter
-                + " light=" + (r2d != null && LightScale != null ? ((float)LightScale.GetValue(r2d)).ToString("0.##") : "?");
-        }
-
-        void OnLogMessage(string message, string stackTrace, LogType type)
-        {
-            if (type != LogType.Error && type != LogType.Exception && type != LogType.Warning) return;
-            _errors++;
-            if (_firstError == null) _firstError = message.Length > 160 ? message.Substring(0, 160) : message;
-        }
-
-        static void Inventory(Camera cam)
-        {
-            var canvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None).Where(c => c.isRootCanvas).ToArray();
-            Log.Write(Tag + "canvas " + string.Join(", ", canvases.GroupBy(c => c.renderMode).Select(g => g.Key + "=" + g.Count())));
-            foreach (var c in canvases.Where(c => c.renderMode != RenderMode.ScreenSpaceOverlay).Take(20))
-                Log.Write(Tag + "canvas " + c.renderMode + " '" + c.name + "' cam=" + (c.worldCamera != null ? c.worldCamera.name : "-")
-                    + " order=" + c.sortingOrder + " layer=" + c.sortingLayerName + " plane=" + c.planeDistance.ToString("0.##"));
-
-            var sprites = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None).Where(s => s.sprite != null).ToArray();
-            Log.Write(Tag + "sprites=" + sprites.Length
-                + " ppu=" + string.Join(",", sprites.GroupBy(s => Mathf.RoundToInt(s.sprite.pixelsPerUnit)).OrderByDescending(g => g.Count()).Take(6).Select(g => g.Key + ":" + g.Count()))
-                + " filter=" + string.Join(",", sprites.Where(s => s.sprite.texture != null).GroupBy(s => s.sprite.texture.filterMode).Select(g => g.Key + ":" + g.Count())));
-
-            // 화면의 25% 이상을 덮는 렌더러 = 큰 반투명 레이어 후보
-            float h = cam.orthographicSize * 2f, w = h * cam.aspect;
-            var p = cam.transform.position;
-            var view = new Rect(p.x - w / 2f, p.y - h / 2f, w, h);
-            var renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None).Where(r => r.enabled && r.isVisible).ToArray();
-            Log.Write(Tag + "visible " + string.Join(", ", renderers.GroupBy(r => r.GetType().Name).OrderByDescending(g => g.Count()).Select(g => g.Key + "=" + g.Count())));
-            var covers = renderers
-                .Select(r => new { r, cover = Overlap(view, r.bounds) / (w * h) })
-                .Where(x => x.cover >= 0.25f)
-                .OrderByDescending(x => x.cover)
-                .Take(25);
-            foreach (var x in covers)
-            {
-                var r = x.r;
-                var alpha = r is SpriteRenderer sr ? sr.color.a.ToString("0.##") : "-";
-                var parent = r.transform.parent != null ? r.transform.parent.name + "/" : "";
-                Log.Write(Tag + "cover " + (x.cover * 100f).ToString("0") + "% " + r.GetType().Name + " '" + parent + r.name + "'"
-                    + " layer=" + r.sortingLayerName + "/" + r.sortingOrder + " alpha=" + alpha
-                    + " shader=" + (r.sharedMaterial != null ? r.sharedMaterial.shader.name : "-"));
-            }
-
-            var lights = FindObjectsByType<Light2D>(FindObjectsSortMode.None);
-            Log.Write(Tag + "light2d=" + lights.Length
-                + " shadows=" + lights.Count(l => l.shadowsEnabled)
-                + " types=" + string.Join(",", lights.GroupBy(l => l.lightType).Select(g => g.Key + ":" + g.Count()))
-                + " blendStyles=" + string.Join(",", lights.GroupBy(l => l.blendStyleIndex).Select(g => g.Key + ":" + g.Count())));
-        }
-
-        static float Overlap(Rect view, Bounds b)
-        {
-            float xMin = Mathf.Max(view.xMin, b.min.x), xMax = Mathf.Min(view.xMax, b.max.x);
-            float yMin = Mathf.Max(view.yMin, b.min.y), yMax = Mathf.Min(view.yMax, b.max.y);
-            return xMax > xMin && yMax > yMin ? (xMax - xMin) * (yMax - yMin) : 0f;
         }
     }
 }
