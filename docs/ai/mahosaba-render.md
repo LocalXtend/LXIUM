@@ -36,7 +36,7 @@
 | B2 | 전환 복사 생략 | `TransitionalRenderer.RenderToTexture` 앞에서 입력 해시(메인·전환 텍스처, 진행도, 색, 블러, 뒤집기, 대상 RT)가 같으면 생략. 메인 텍스처가 B1이 그린 RT면 그 버전 번호를 해시에 넣음. 출처 모르는 RT(다이스·영상)는 항상 그림 | 같음 | 구현 (B1과 같은 설정) |
 | B3 | 액터 원래 해상도 | 레이어 캐릭터 메타데이터 PPU를 `화면 높이 / 1440`배로(1080p: 0.75 → 1125x2250, 픽셀 56%). 합성 RT와 화면 쿼드가 같이 줄어 화면상 크기 그대로 | Spatial Resolution을 "월드 = 화면 밖 액터 합성"에만 적용. UI·대사는 메인 카메라라 영향 없음 | 구현 `Character.Resolution` |
 | B4 | 무대 가시성 컬링 | 게임이 무대를 띄운 동안에도, RawImage의 상속 알파가 0인 화면의 카메라는 끔 | — | 구현 `Stage.HiddenSkip` (2차: -10.2 ms) |
-| B5 | 무대 해상도 | `RenderTexture_1/2`를 화면 높이에 맞춰 줄임(원래 화면과 무관하게 1920x1080). RawImage가 화면 크기로 보여 주므로 화면보다 큰 RT는 낭비. 해상도를 바꾸면 따라감 | Spatial Resolution | 구현 `Stage.Resolution` (기본 0 = 화면 맞춤, 0.1.1) |
+| B5 | 무대 해상도 | `RenderTexture_1/2`를 화면 높이에 맞춰 줄임(원래 화면과 무관하게 1920x1080). RawImage가 화면 크기로 보여 주므로 화면보다 큰 RT는 낭비. 해상도를 바꾸면 따라감 | Spatial Resolution | 구현 `Stage.Resolution` (기본 0 = 화면 맞춤, 0.1.1. 3차: 768p에서 -5.1 ms, 세밀한 무늬에서 화소 차이 2.6%) |
 | B6 | 무대 교차 갱신 | 두 무대 카메라를 프레임마다 번갈아 그림(각 30Hz). 불·카메라 흔들기가 반 프레임 늦음 | Temporal Frame Reprojection | 후보 |
 | B7 | 제로 카피 액터 | `TransitionalSpriteRenderer`의 RT 단계를 없애고 `DrawMesh`에서 전환 셰이더로 화면에 바로 그림 (전환·색·블러를 한 패스로) | Render Fast | 후보 (C1 필요할 수 있음) |
 | B8 | 절차적 레이어 합성 | 캐릭터의 `renderCamera`를 비워 Naninovel 절차적 경로(CommandBuffer)로. URP 카메라 1회가 DrawMesh 몇 개로 바뀜. 스텐실 마스크 재질 호환 확인 필요 | Render Fast | 후보 |
@@ -56,7 +56,7 @@ B1·B2가 켜지면 대사만 넘기는 장면에서 화면 밖 렌더는 거의
 | C3 | `LXIUM/FireLite` | 법정 불 쿼드를 노이즈 1장 + 플립북으로 | `Court.ChangeFireFxActivity`의 켜짐·불빛 색 |
 | C4 | `LXIUM/CourtLite` | 법정 Lit 재질을 스포트라이트 2개 고정 조명용 단순 셰이딩으로 | 스포트라이트 색(불빛 색 전환) |
 
-UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p 화면에 쿼드 몇 장 + UI라서 가능성이 높다 [추론]. 재판 장면은 Iris Xe 768p 창 모드에서 A+B1+B2+B4로 72fps (mahosaba.md 10장 2차). 남은 무대 카메라 1대(Lit + 불 + SSAO)를 B5·B6·C3·C4로 줄여야 한다 [추론].
+UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p 화면에 쿼드 몇 장 + UI라서 가능성이 높다 [추론]. 재판 장면은 Iris Xe 768p 창 모드에서 A+B1+B2+B4+B5로 115fps (mahosaba.md 10장 3차). 1080p 전체 화면은 아직 측정 전. 남은 무대 카메라 1대(Lit + 불 + SSAO)는 B6·C3·C4 후보 [추론].
 
 ### 채택하지 않는 것
 
