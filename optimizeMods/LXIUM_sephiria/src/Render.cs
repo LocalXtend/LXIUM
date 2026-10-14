@@ -1,0 +1,142 @@
+using System;
+using System.IO;
+using System.Reflection;
+using System.Text;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+
+namespace LXIUM_sephiria
+{
+    /// <summary>
+    /// 엔진에 이미 있는 기능만으로 렌더 비용을 바꾼다: URP 렌더 배율·업스케일 필터, 2D 조명 텍스처 배율.
+    /// 게임 원래 값은 처음 찾을 때 한 번 기억하고, 프리셋의 0 이하·빈 값은 그 값으로 되돌린다.
+    /// </summary>
+    public static class Render
+    {
+        const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+        static readonly FieldInfo RendererList = typeof(UniversalRenderPipelineAsset).GetField("m_RendererDataList", Private);
+        static readonly FieldInfo LightScale = typeof(Renderer2DData).GetField("m_LightRenderTextureScale", Private);
+
+        static UniversalRenderPipelineAsset asset;
+        static Renderer2DData[] datas = Array.Empty<Renderer2DData>();
+        static float[] gameLight = Array.Empty<float>();
+        static float gameScale;
+        static UpscalingFilterSelection gameFilter;
+
+        public static UniversalRenderPipelineAsset Asset => Find() ? asset : null;
+        public static Renderer2DData[] Datas => Find() ? datas : Array.Empty<Renderer2DData>();
+
+        static bool Find()
+        {
+            if (asset != null) return true;
+            asset = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            if (asset == null) return false;
+            var list = RendererList?.GetValue(asset) as ScriptableRendererData[] ?? Array.Empty<ScriptableRendererData>();
+            datas = Array.ConvertAll(list, d => d as Renderer2DData);
+            gameLight = Array.ConvertAll(datas, d => d != null && LightScale != null ? (float)LightScale.GetValue(d) : 1f);
+            gameScale = asset.renderScale;
+            gameFilter = asset.upscalingFilter;
+            return true;
+        }
+
+        public static string Apply(RenderPreset p)
+        {
+            if (!Find()) return "URP 에셋 없음, 적용 안 함";
+            asset.renderScale = p.RenderScale > 0 ? p.RenderScale : gameScale;
+            var filter = gameFilter;
+            if (p.Upscale.Length > 0 && !Enum.TryParse(p.Upscale, true, out filter))
+            {
+                Debug.LogWarning($"[LXIUM] 업스케일 필터 '{p.Upscale}' 모름 (Auto, Linear, Point, FSR, STP). 게임 값 사용");
+                filter = gameFilter;
+            }
+            asset.upscalingFilter = filter;
+            for (int i = 0; i < datas.Length; i++)
+                if (datas[i] != null && LightScale != null) LightScale.SetValue(datas[i], p.LightScale > 0 ? p.LightScale : gameLight[i]);
+            return p.ToString();
+        }
+    }
+
+    /// <summary>
+    /// 렌더 설정 비교: 프리셋마다 적용 → 예열 → 측정 → 스크린샷 순으로 돌고, 끝나면 사용자 설정(Settings.Render)으로 되돌린다.
+    /// 결과는 logs/lab-시각/ 에 results.txt와 프리셋별 png로 남긴다.
+    /// </summary>
+    public sealed class Lab
+    {
+        enum Stage { Warmup, Measure, Shot }
+
+        readonly Settings settings;
+        readonly string logDir;
+        int index = -1;
+        Stage stage;
+        float stageEnd;
+        long from;
+        string runDir;
+        StringBuilder results;
+
+        public Lab(Settings settings, string logDir) { this.settings = settings; this.logDir = logDir; }
+
+        public bool Running => index >= 0;
+
+        public void Toggle()
+        {
+            if (Running) { Stop("중단"); return; }
+            if (settings.LabPresets == null || settings.LabPresets.Length == 0) { Debug.Log("[LXIUM] lab: 프리셋 없음"); return; }
+            runDir = Path.Combine(logDir, "lab-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+            Directory.CreateDirectory(runDir);
+            results = new StringBuilder();
+            results.AppendLine("# " + Probe.Environment());
+            index = 0;
+            Begin();
+        }
+
+        void Begin()
+        {
+            var p = settings.LabPresets[index];
+            Debug.Log("[LXIUM] lab " + (index + 1) + "/" + settings.LabPresets.Length + " " + Render.Apply(p));
+            stage = Stage.Warmup;
+            stageEnd = Time.realtimeSinceStartup + settings.LabWarmupSec;
+        }
+
+        public void Tick()
+        {
+            if (!Running || Time.realtimeSinceStartup < stageEnd) return;
+            var p = settings.LabPresets[index];
+            switch (stage)
+            {
+                case Stage.Warmup:
+                    stage = Stage.Measure;
+                    from = Frame.Count;
+                    stageEnd = Time.realtimeSinceStartup + settings.LabMeasureSec;
+                    break;
+                case Stage.Measure:
+                    string line = $"{index + 1:00}_{p}: {Frame.Report(from)}";
+                    Debug.Log("[LXIUM] lab " + line);
+                    results.AppendLine(line);
+                    // 스크린샷은 이 프레임 끝에 찍히므로 다음 프리셋은 몇 프레임 뒤에 적용한다
+                    ScreenCapture.CaptureScreenshot(Path.Combine(runDir, $"{index + 1:00}_{FileName(p.Name)}.png"));
+                    stage = Stage.Shot;
+                    stageEnd = Time.realtimeSinceStartup + 0.3f;
+                    break;
+                case Stage.Shot:
+                    if (++index >= settings.LabPresets.Length) Stop("끝");
+                    else Begin();
+                    break;
+            }
+        }
+
+        void Stop(string why)
+        {
+            index = -1;
+            Debug.Log("[LXIUM] lab " + why + ", 사용자 설정으로 복귀: " + Render.Apply(settings.Render));
+            try { File.WriteAllText(Path.Combine(runDir, "results.txt"), results.ToString()); }
+            catch (Exception e) { Debug.LogWarning("[LXIUM] lab 결과 저장 실패: " + e.Message); }
+        }
+
+        static string FileName(string name)
+        {
+            foreach (char c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
+            return name;
+        }
+    }
+}

@@ -3,111 +3,106 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
-namespace LXIUM.Sephiria
+namespace LXIUM_sephiria
 {
-    public sealed class Entry : HorayModBase
+    /// <summary>
+    /// 게임 내장 AddOnLoader가 metadata.json의 entryClass로 만드는 진입점.
+    /// GameDataLoader.Awake 안, 게임 데이터베이스 초기화 전에 불린다.
+    /// </summary>
+    public class Entry : HorayModBase
     {
+        GameObject host;
+
         protected override void OnModLoaded()
         {
-            if (Host.Instance != null) return;
-            var owner = new GameObject("LXIUM Sephiria");
-            UnityEngine.Object.DontDestroyOnLoad(owner);
-            owner.AddComponent<Host>();
+            string dir = Path.GetDirectoryName(typeof(Entry).Assembly.Location);
+            var settings = Settings.Load(dir);
+            Frame.Install();
+            Debug.Log($"[LXIUM] {typeof(Entry).Assembly.GetName().Version.ToString(3)} loaded; {Probe.Environment()}");
+            Debug.Log("[LXIUM] loop phases: " + string.Join(",", Frame.PhaseNames));
+            Debug.Log("[LXIUM] render " + Render.Apply(settings.Render));
+            host = new GameObject("LXIUM_sephiria") { hideFlags = HideFlags.HideAndDontSave };
+            Object.DontDestroyOnLoad(host);
+            host.AddComponent<Driver>().Init(settings, Path.Combine(dir, "logs"));
         }
+
         protected override void OnModUnloaded()
         {
-            var host = Host.Instance;
-            if (host != null) { host.Detach(); UnityEngine.Object.Destroy(host.gameObject); }
+            if (host) Object.Destroy(host);
+            Frame.Uninstall();
         }
     }
-    internal static class Log
+
+    /// <summary>단축키, 장면 전환 덤프, 비교 실행, 주기 통계를 매 프레임 처리한다.</summary>
+    public sealed class Driver : MonoBehaviour
     {
-        public static void Info(string text) => Debug.Log("[LXIUM Sephiria] " + text);
-        public static void Warn(string text) => Debug.LogWarning("[LXIUM Sephiria] " + text);
-    }
-    public sealed class Host : MonoBehaviour
-    {
-        public static Host Instance;
-        public static readonly string ModDirectory = Path.GetDirectoryName(typeof(Entry).Assembly.Location);
-        internal Config Config;
-        internal string ConfigPath => Path.Combine(ModDirectory, "config.json");
-        internal string Status;
-        bool stopped;
-        float nextRefresh;
-        void Awake()
+        Settings settings;
+        string logDir;
+        Lab lab;
+        Key probeKey, labKey;
+        float nextStats, probeAt = -1;
+        long statsFrom;
+
+        public void Init(Settings s, string dir)
         {
-            Instance = this;
-            try { Config = Config.Load(ConfigPath); }
-            catch (Exception e)
-            {
-                Log.Warn("config retained as backup: " + e.Message);
-                string backup = ConfigPath + ".invalid-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
-                try { File.Copy(ConfigPath, backup, false); }
-                catch (Exception backupError) { Log.Warn("config backup failed: " + backupError.Message); enabled = false; return; }
-                Config = new Config();
-            }
-            SaveConfig();
-            SceneManager.activeSceneChanged += SceneChanged;
-            Pipeline.Set(Config.Options);
-            WorldRender.Initialize();
-            Log.Info("loaded; F10 comparison, press F10 again to cancel");
+            settings = s;
+            logDir = dir;
+            lab = new Lab(s, dir);
+            probeKey = ParseKey(s.ProbeKey);
+            labKey = ParseKey(s.LabKey);
+            nextStats = Time.realtimeSinceStartup + s.StatsIntervalSec;
+            SceneManager.sceneLoaded += OnSceneLoaded;
         }
-        void SceneChanged(Scene oldScene, Scene newScene)
+
+        static Key ParseKey(string name)
         {
-            RenderLab.Cancel(this, "scene changed");
-            WorldRender.Refresh();
-            nextRefresh = 0;
+            if (string.IsNullOrEmpty(name)) return Key.None;
+            if (Enum.TryParse(name, true, out Key k)) return k;
+            Debug.LogWarning($"[LXIUM] 키 '{name}' 모름 (InputSystem Key 이름, 예: F9). 끔");
+            return Key.None;
         }
+
+        void OnDestroy() => SceneManager.sceneLoaded -= OnSceneLoaded;
+
+        void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (settings.AutoProbe) probeAt = Time.realtimeSinceStartup + 3;
+        }
+
         void Update()
         {
-            try
+            float now = Time.realtimeSinceStartup;
+            var kb = Keyboard.current;
+            if (kb != null)
             {
-                if (Keyboard.current?.f10Key.wasPressedThisFrame == true && Config.F10Comparison)
-                {
-                    if (RenderLab.Running) RenderLab.Cancel(this, "F10 cancelled");
-                    else RenderLab.Start(this);
-                }
-                if (Time.unscaledTime >= nextRefresh)
-                {
-                    nextRefresh = Time.unscaledTime + 1f;
-                    Pipeline.Ensure();
-                    WorldRender.Refresh();
-                }
-                Pipeline.Tick();
+                if (probeKey != Key.None && kb[probeKey].wasPressedThisFrame) RunProbe();
+                if (labKey != Key.None && kb[labKey].wasPressedThisFrame) lab.Toggle();
             }
-            catch (Exception e)
+            if (probeAt > 0 && now >= probeAt)
             {
-                Log.Warn("renderer stopped: " + e.GetBaseException().Message);
-                Shutdown();
-                enabled = false;
+                probeAt = -1;
+                RunProbe();
+            }
+            lab.Tick();
+            if (lab.Running || settings.StatsIntervalSec <= 0)
+            {
+                statsFrom = Frame.Count;
+                nextStats = now + settings.StatsIntervalSec;
+            }
+            else if (now >= nextStats)
+            {
+                Debug.Log($"[LXIUM] frame scene={Probe.SceneName()} {Frame.Report(statsFrom)}");
+                statsFrom = Frame.Count;
+                nextStats = now + settings.StatsIntervalSec;
             }
         }
-        internal void SaveConfig()
+
+        void RunProbe()
         {
-            try { Config.Save(ConfigPath); }
-            catch (Exception e) { Log.Warn("config save failed: " + e.Message); }
-        }
-        void OnGUI()
-        {
-            if (string.IsNullOrEmpty(Status)) return;
-            GUI.Box(new Rect(12, 12, Math.Min(Screen.width - 24, 800), 88), Status);
-        }
-        void OnApplicationFocus(bool focused) { if (!focused) RenderLab.Cancel(this, "focus lost"); }
-        void OnDisable() => Shutdown();
-        void OnDestroy() { Shutdown(); if (Instance == this) Instance = null; }
-        internal void Detach() { Shutdown(); if (Instance == this) Instance = null; }
-        void Shutdown()
-        {
-            if (stopped) return;
-            stopped = true;
-            RenderLab.Cancel(this, "controller disabled");
-            SceneManager.activeSceneChanged -= SceneChanged;
-            LightCache.Dispose();
-            SpriteBatch.Dispose();
-            WorldRender.Dispose();
-            PatchBridge.Dispose();
-            Pipeline.Dispose();
+            try { Debug.Log("[LXIUM] probe → logs/" + Path.GetFileName(Probe.Dump(logDir))); }
+            catch (Exception e) { Debug.LogWarning("[LXIUM] probe 실패: " + e); }
         }
     }
 }

@@ -1,46 +1,75 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AssemblyName>LXIUM_sephiria</AssemblyName>
+    <RootNamespace>LXIUM_sephiria</RootNamespace>
+    <Product>LXIUM Sephiria</Product>
     <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)ver.txt').Trim())</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- 게임의 Mono 기본 라이브러리(mscorlib·netstandard)로만 컴파일해 NuGet 없이 빌드 -->
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <!-- 게임 루트. 다른 위치면 빌드 때 -p:GameDir=... 로 지정 -->
     <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Sephiria</GameDir>
     <ManagedDir>$(GameDir)\Sephiria_Data\Managed</ManagedDir>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
+
   <ItemGroup>
-    <Compile Remove="tests\**\*.cs" />
-    <Reference Include="$(ManagedDir)\Unity*.dll" Private="false" />
-    <Reference Include="$(ManagedDir)\Assembly-CSharp.dll" Private="false" />
-    <Reference Include="$(ManagedDir)\Newtonsoft.Json.dll" Private="false" />
-    <PackageReference Include="Lib.Harmony" Version="2.4.2" GeneratePathProperty="true" ExcludeAssets="compile" PrivateAssets="all" />
-    <EmbeddedResource Include="res\lxium_sephiria.bundle" LogicalName="lxium_sephiria.bundle" />
-    <EmbeddedResource Include="res\depth-safe-shaders.json" LogicalName="depth-safe-shaders.json" />
+    <Compile Remove="tests\**" />
   </ItemGroup>
-  <Target Name="CheckPackage" BeforeTargets="Build">
+
+  <!-- 게임 어셈블리는 컴파일에만 씀 (배포하지 않음) -->
+  <ItemGroup>
+    <Reference Include="$(ManagedDir)\mscorlib.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\netstandard.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\System.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\System.Core.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.JSONSerializeModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.ScreenCaptureModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.ParticleSystemModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.TilemapModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.GridModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.UIModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.UI.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Unity.TextMeshPro.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Unity.InputSystem.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Unity.RenderPipelines.Core.Runtime.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Unity.RenderPipelines.Universal.Runtime.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Unity.RenderPipelines.Universal.2D.Runtime.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Assembly-CSharp.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- docs/ai/addon.md 7장: lxium.json의 version은 ver.txt와 같아야 함. 게임 로더가 읽는 metadata.json도 같이 확인 -->
+  <Target Name="CheckManifestVersion" BeforeTargets="Build">
     <PropertyGroup>
-      <ManifestVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)lxium.json')), '&quot;version&quot;\s*:\s*&quot;([^&quot;]+)&quot;').Groups[1].Value)</ManifestVersion>
+      <ManifestVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)lxium.json')), '"version"\s*:\s*"([^"]+)"').Groups[1].Value)</ManifestVersion>
+      <MetadataVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)metadata.json')), '"modVersion"\s*:\s*"([^"]+)"').Groups[1].Value)</MetadataVersion>
     </PropertyGroup>
-    <Error Condition="'$(ManifestVersion)' != '$(Version)'" Text="lxium.json version must match ver.txt" />
-    <Error Condition="!Exists('res\lxium_sephiria.bundle')" Text="Build the dedicated shader with shaders/build_world.py first." />
+    <Error Condition="'$(ManifestVersion)' != '$(Version)'" Text="lxium.json version '$(ManifestVersion)' != ver.txt '$(Version)'" />
+    <Error Condition="'$(MetadataVersion)' != '$(Version)'" Text="metadata.json modVersion '$(MetadataVersion)' != ver.txt '$(Version)'" />
   </Target>
+
+  <!-- Release 빌드: dist/<id>-<version>.zip. 변형 none = 게임 내장 AddOns 로더 (docs/ai/addon.md 2·4장) -->
   <Target Name="PackageAddon" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
-      <PkgDir>$(MSBuildThisFileDirectory)obj\pkg\</PkgDir>
-      <ModDir>$(PkgDir)none\AddOns\LXIUM_sephiria\</ModDir>
+      <PkgDir>$(BaseIntermediateOutputPath)pkg\</PkgDir>
+      <DistDir>$(MSBuildThisFileDirectory)dist\</DistDir>
+      <ModDir>$(PkgDir)none\AddOns\$(AssemblyName)\</ModDir>
     </PropertyGroup>
     <RemoveDir Directories="$(PkgDir)" />
-    <Copy SourceFiles="lxium.json" DestinationFolder="$(PkgDir)" />
-    <Copy SourceFiles="metadata.json;$(TargetPath)" DestinationFolder="$(ModDir)" />
-    <Copy SourceFiles="$(PkgLib_Harmony)\lib\net472\0Harmony.dll" DestinationFolder="$(ModDir)Libs\" />
-    <Copy SourceFiles="$(PkgLib_Harmony)\LICENSE" DestinationFiles="$(ModDir)Libs\Harmony.LICENSE" />
-    <MakeDir Directories="dist" />
-    <ZipDirectory SourceDirectory="$(PkgDir)" DestinationFile="$(MSBuildThisFileDirectory)dist\$(AssemblyName)-$(Version).zip" Overwrite="true" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)lxium.json" DestinationFolder="$(PkgDir)" />
+    <Copy SourceFiles="$(OutDir)$(AssemblyName).dll;$(MSBuildThisFileDirectory)metadata.json" DestinationFolder="$(ModDir)" />
+    <MakeDir Directories="$(DistDir)" />
+    <ZipDirectory SourceDirectory="$(PkgDir)" DestinationFile="$(DistDir)$(AssemblyName)-$(Version).zip" Overwrite="true" />
   </Target>
-  <Target Name="DeployToGame" AfterTargets="PackageAddon" Condition="'$(Deploy)' == 'true' and '$(Configuration)' == 'Release'">
-    <Copy SourceFiles="$(ModDir)metadata.json;$(ModDir)LXIUM_sephiria.dll" DestinationFolder="$(GameDir)\AddOns\LXIUM_sephiria\" />
-    <Copy SourceFiles="$(ModDir)Libs\0Harmony.dll" DestinationFolder="$(GameDir)\AddOns\LXIUM_sephiria\Libs\" />
-    <Copy SourceFiles="$(ModDir)Libs\Harmony.LICENSE" DestinationFolder="$(GameDir)\AddOns\LXIUM_sephiria\Libs\" />
+
+  <!-- 개발용: -p:Deploy=true 이면 게임의 AddOns/LXIUM_sephiria/ 에 바로 복사 -->
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
+    <Copy SourceFiles="$(OutDir)$(AssemblyName).dll;$(MSBuildThisFileDirectory)metadata.json" DestinationFolder="$(GameDir)\AddOns\$(AssemblyName)" />
   </Target>
+
 </Project>
