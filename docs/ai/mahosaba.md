@@ -1,0 +1,251 @@
+# 마법소녀의 마녀재판 분석 (AI용)
+
+- 사람용 문서: `../human/mahosaba.md`
+- 렌더링 설계: `mahosaba-render.md`
+- 대상 프로젝트: `optimizeMods/LXIUM_mahosaba/`
+- 이 문서의 사실은 2장의 빌드를 정적 분석(실행 없음)해서 얻음. 게임 업데이트 후에는 2장의 식별값을 먼저 비교하고, 다르면 해당 사실을 다시 확인함
+- 표기: **[관찰]** 바이너리·에셋에서 직접 확인 / **[추론]** 관찰에서 이끌어 낸 판단 / **[미확인]** 아직 증거 없음
+- `ev_…`는 REA 근거 ID(앞 16자리). 11장 참고
+
+## 1. 결정 사항
+
+| 항목 | 결정 |
+|---|---|
+| 로더 | BepInEx 6 IL2CPP (be.785 이상). 애드온 변형 `bepinex6`, 경로 `BepInEx/plugins/LXIUM_mahosaba/` |
+| 패치 방식 | 런타임만 (Harmony + Unity API + 엔진 내부 호출). 에셋 번들 교체 금지 (한글 패치가 번들을 교체함, 3장) |
+| 게임 로직 | 스크립트 진행·세이브·선택지에 관여하지 않음. 렌더 경로와 프레임 제한만 바꿈 |
+| 패치 대상 | IL2CPP가 같은 기계어를 여러 메서드가 나눠 쓰게 합침(ICF). **주소가 한 메서드에만 쓰이는 것만 패치** (9.2) |
+| 기본값 | 화면이 바뀌지 않는 최적화만 켬. 화질이 바뀌는 것은 설정으로만 |
+
+## 2. 분석 대상 식별값
+
+| 항목 | 값 |
+|---|---|
+| 게임 | 魔法少女ノ魔女裁判 (Magical Girl Witch Trials), Steam app 3101040, buildid 21793620 |
+| 엔진 | Unity 6000.0.48f1, IL2CPP, 64비트, 메타데이터 v31 |
+| `boot.config` build-guid | `1ddf986c56ce4bc4947b3b9c2c7de488` |
+| `GameAssembly.dll` SHA-256 | `d19a9d98abe1f5d120588f23f7fe0645b8b94a2777517f90338d640e0e934506` |
+| `global-metadata.dat` SHA-256 | `2ad884295e77d94d40dfe134392ab69fd8b6a94ca6bbd3b27e84cd3aa2f90fe5` |
+| 그래픽 API | 목록 D3D11, D3D12, Vulkan, OpenGLCore (첫 항목 D3D11이 기본) [관찰: BuildSettings] |
+| `boot.config` | `gfx-enable-gfx-jobs=1`, `gfx-threading-mode=6` |
+| 렌더 파이프라인 | URP (Universal Renderer, Forward). 2D Renderer 아님 [관찰] |
+| 노벨 엔진 | Naninovel 1.20 (빌드 2025-04-26) [관찰: `EngineVersion`] |
+| 개발사 확장 | `GigaCreation.NaninovelExtender.*` (ExtendedActors, Cameras, Effects …), 게임 코드 `WitchTrials.*` (Assembly-CSharp) |
+| 기타 | UniTask, LitMotion, TextMeshPro, LeTai TrueShadow, MPUIKit, 2D Animation(SpriteSkin), Timeline, Addressables |
+| 개발 PC | Intel Iris Xe (i5-1235U), 1920x1080 60Hz |
+
+## 3. 한글 패치와 호환 [관찰: 파일 시각]
+
+- 설치일(2026-10-14)과 다른 2026-02-13 시각의 번들 28개가 한글 패치 파일
+  - `general-localization-zhhans-*` (scripts 23, text 1): 중국어 간체 자리에 한국어 텍스트
+  - `general-data`, `general-sprites`(52 MB), `naninovel-spawn`(1 GB), `naninovel-ui`(1.8 MB)
+- 이 문서의 UI·연출 수치(7장)는 패치된 번들에서 읽은 값
+- 글꼴: `UIConfiguration`에 `zh-Hans` → `SourceHanSansKR` 매핑. TMP 글꼴은 전부 Dynamic 아틀라스 (SourceHanSansKR 1024² 단일 아틀라스, multi-atlas 꺼짐) [관찰]
+- LXIUM은 번들을 건드리지 않으므로 패치와 충돌하지 않음 [추론]. 게임 업데이트로 패치 파일이 덮이면 한글이 사라지는 것은 패치 쪽 문제
+
+## 4. URP 설정: 3D 기본 템플릿을 그대로 씀 [관찰: globalgamemanagers.assets]
+
+| 항목 | 값 | 이 게임에서의 의미 |
+|---|---|---|
+| 에셋 이름 | `URP-HighFidelity` / `URP-HighFidelity-Renderer` | Unity 3D 템플릿 기본 에셋 이름 그대로 |
+| MSAA | 4x | 대상 RT가 없는 카메라(메인)는 4x. RT 카메라는 RT의 값(무대 2x, 캐릭터 1x) [추론: URP 동작] |
+| HDR | 꺼짐 | — |
+| Render Scale / 업스케일 | 1.0 / Auto | — |
+| 렌더러 기능 | **SSAO** (DepthNormals 소스, 다운샘플 없음, 블러 High, 강도 0.5) | 렌더러를 쓰는 **모든 카메라**가 매번 실행 |
+| 중간 텍스처 | **Always** | 필요 없을 때도 중간 RT + 복사 |
+| 그림자 | 메인 라이트 4096, 캐스케이드 4, 소프트 / 추가 라이트 4096 | 그림자 켠 라이트가 없어 실제로는 거의 안 씀 [추론: 6장] |
+| SRP Batcher / GPU Resident Drawer | 켜짐 / 꺼짐 | — |
+| 볼륨 | 기본 프로필의 모든 효과 0(Bloom 0, Tonemapping None 등). 씬·번들에 Volume 컴포넌트 없음 | 포스트 프로세싱을 켜도 보이는 효과는 FXAA뿐 [추론] |
+
+- 품질 단계 6개: VSync는 Very Low·Low·Ultra 0, Medium·High·Very High 1. 단계별 파이프라인 에셋 교체 없음 [관찰]
+- 결론: 3D 템플릿 기본값(MSAA 4x, SSAO, 중간 텍스처 Always)을 2D 노벨 화면에 그대로 씀 [추론]. 이 비용은 **카메라 수만큼 곱해짐** (5·6장)
+
+## 5. 캐릭터 렌더링
+
+### 5.1 액터 종류 [관찰: `CharactersConfiguration`]
+
+| 구현 | 수 | 대상 |
+|---|---|---|
+| `LayeredCharacterExtended` (레이어 합성) | 13 | 주연: Ema, Hiro, Meruru, Hanna, Sherry, AnAn, Leia, Coco, Miria, Margo, Noah, Nanoka, Alisa |
+| `DicedSpriteCharacterExtended` (다이스 스프라이트) | 18 | Yuki, Warden, Jailer A~C, Creature* 13 |
+| `NarratorCharacter` (이름만) | 10 | Unknown, EmaFake 등 |
+
+배경은 `WitchTrials.Views.WitchTrialsBackground : SpriteBackgroundExtended` (스프라이트 액터) [관찰].
+
+### 5.2 레이어 캐릭터 프리팹 [관찰: `naninovel-characters/*.bundle`]
+
+| 항목 | 값 |
+|---|---|
+| 렌더 방식 | `LayeredCharacterBehaviour.renderCamera` 지정 → **카메라 모드**. Naninovel 툴팁: "Less optimized" |
+| `animated` | **1** (13명 전부). 툴팁: "Whether the actor should be rendered every frame" |
+| `RenderCanvas.Size` | 15 x 30 유닛 → PPU 100이면 **1500 x 3000 px** (4.5 MP, 1080p 화면의 2.2배) |
+| SpriteRenderer | 43~126개, 기본 표정에서 켜진 것 9~17개 |
+| 아틀라스 | 1장. 4096x8192~8192x8192 BC7, AnAn 8192x16384. **밉맵 없음**. 8192² BC7 = 64 MB |
+| 카메라 | 직교, 컬링 마스크 0(실행 중 전용 레이어로 바뀜), `UniversalAdditionalCameraData` 포스트 꺼짐·렌더러 기본(-1 = HighFidelity) |
+| 애니메이션 | Animator 없음. 말하기 이벤트(`onStartedSpeaking` 등) 비어 있음. 표정·포즈는 `compositionMap`(67~136개 키) 조합 |
+| 재질 | `Naninovel Extender/Default`, `/Multiply`, 스텐실 마스크 변형(`#Masked_Ref1`, `#Mask_Ref1_CutoffLow`) |
+| `LayerModifier` | 레이어 렌더러 목록을 들고 `ModifyLayers(layer)`로 GameObject 레이어를 카메라 컬링 레이어로 바꿈 [관찰: ev_7d6dcc76fdef656c] |
+
+### 5.3 그리는 경로 [관찰: REA Ghidra 디컴파일]
+
+1. `LayeredActor.RenderAppearance` — `perceivedVisibility`(+0xB1)가 참일 때만, `Behaviour.Render(메타데이터 PPU, appearanceTexture)` 호출. 반환 RT가 바뀌면 이전 RT를 `RenderTexture.ReleaseTemporary` 하고 `TransitionalRenderer.MainTexture`에 새 RT를 넣음 (ev_396046bcba1f543a)
+2. `LayeredActorBehaviour.Render` → `Drawer.DrawLayers` (ev_a3e3f623f6f7abd1)
+3. `LayeredDrawer.DrawWithCamera` — 카메라를 **끈 상태로** 두고, RT를 준비해 `targetTexture`에 넣은 뒤 엔진 내부 호출 `Camera::Render_Injected`로 **직접 렌더** (ev_9fe04d4d38a61ec2)
+4. `LayeredDrawer.PrepareRenderTexture` — 크기가 같으면 재사용, 아니면 `RenderTexture.GetTemporary(w, h, 24)` (깊이·스텐실 24, MSAA 없음) (ev_5ba4089c7240b185)
+5. `TransitionalSpriteRenderer.Update` — **매 프레임**: `ShouldRender()` → 스프라이트 재질 불투명도 설정 → `PrepareRenderTexture` → `RenderToTexture(renderTexture)` → `Graphics.DrawMesh` (깊이 패스가 켜져 있으면 한 번 더) (ev_650744b26b6f65ea)
+6. `TransitionalRenderer.ShouldRender` — "메인 텍스처가 있고 직전 프레임 불투명도 > 0"만 검사. **바뀌었는지는 보지 않음** (ev_6cf33aa86fef8d65)
+7. `TransitionalRenderer.RenderToTexture` — 전환 셰이더(`Naninovel/TransitionalTexture`, 키워드 29개)로 메인·전환 텍스처를 섞어 RT에 그림. 블러 강도가 있으면 `BlurFilter.BlurTexture` 추가 (ev_7aca6fcccbb640e6)
+8. `TransitionalSpriteRenderer.PrepareRenderTexture` — 렌더 크기(메인 텍스처 기준)가 같으면 재사용, 아니면 `GetTemporary(w, h, 0)` 후 재질에 연결·메시 재생성 (ev_b73807cb15d72912)
+
+### 5.4 캐릭터 하나가 벅찬 이유
+
+캐릭터 하나가 보이는 동안 프레임마다 생기는 일:
+
+| 단계 | 크기 | 근거 |
+|---|---|---|
+| (a) URP 카메라 1회 전체 렌더: 컬링 + 렌더러 준비 + **SSAO** (DepthNormals 프리패스 + AO + 블러) + **중간 텍스처 복사** | 1500x3000 | 경로 [관찰], SSAO·중간 텍스처가 이 카메라에도 걸림 [추론: 4장 설정 + 카메라 렌더러 -1] |
+| (b) 전환 셰이더로 RT 복사 | 1500x3000 | 매 프레임 [관찰: 5.3-5,6] |
+| (c) 화면에 쿼드 그리기 | 화면 크기 | 메인 카메라, 재판 중에는 무대 카메라 2대도 (6.2) |
+| (d) CPU: `Camera.Render`마다 SRP 컬링·렌더 그래프 준비 | — | [추론] |
+
+- (a)가 매 프레임인지: `animated=1`이 그 의미이고 툴팁도 그렇게 말함 [관찰]. 이 플래그를 읽어 매 프레임 `RenderAppearance`를 부르는 호출자는 가상 호출이라 정적으로 찾지 못함 [미확인 → 렌더 실험실 `layerDraw` 값으로 확인]
+- (a)+(b)만으로 4.5 MP 화면 밖 패스가 최소 2~3번(SSAO 블러 포함 시 그 이상). 1080p 화면 하나(2.07 MP)를 몇 번 다시 그리는 것과 같음 [추론]
+- 아틀라스가 8K BC7에 밉맵이 없어, 처음 등장할 때 64~128 MB 업로드, 공유 메모리를 쓰는 내장 GPU에서 메모리 대역 압박 [추론]
+- 얼굴·옷이 실제로 바뀌는 순간은 드묾 (Animator·립싱크 없음, 조합 변경으로만 바뀜). **결과가 같은 렌더를 매 프레임 반복**하는 것이 핵심 낭비 [추론]
+
+### 5.5 다이스 캐릭터·배경
+
+- `DicedSpriteActor.RenderToTexture(Sprite)` — 외형이 바뀔 때만 다이스 메시를 RT에 그림 (ev_1b591d73f29e3a9d). 아틀라스는 1020x6868~3264x4012 DXT5 Crunched, 밉 없음 [관찰]
+- 그래도 (b) 전환 셰이더 RT 복사는 매 프레임 [관찰: 5.3-5]
+- 배경: `naninovel-backgrounds` 253장 대부분 4096x2048 DXT1 Crunched(정지 화면 172장 포함), 밉 없음. 1장은 RGB24 [관찰]. 스프라이트 액터도 `TransitionalSpriteRenderer`를 쓰므로 **4096x2048(8.4 MP) 복사가 매 프레임** [관찰: 경로 / 추론: RT 크기 = 텍스처 크기]
+
+## 6. 게임 자체 렌더링 (두 번째 의심 원인)
+
+### 6.1 Boot 씬 구성 [관찰: level0]
+
+```
+MainCamera (직교, 마스크 Default|UI, 포스트 켬, FXAA, MSAA 허용, 그림자 켬) → 화면
+PerspectiveStage
+├─ ScreenCanvas (Screen Space-Camera, order -1)
+│   └─ StageScreenContainer_1/2 (CanvasGroup, Quadrilateral 마스크) → RawImage(RenderTexture_1/2)
+└─ Stage/Cameras (StageCameraController)
+    └─ CameraContainer_1/2 → Camera (원근 FOV 30, 마스크 Default, HDR, 포스트 켬, FXAA, 그림자 켬)
+                              → RenderTexture_1/2 (1920x1080, MSAA 2x, D24S8, 밉 없음)
+```
+
+### 6.2 재판 3D 무대
+
+- 법정 프리팹 `Court`, `Court_Final` [관찰: general-prefabs]
+  - URP Lit 재질 (바닥·계단: 노멀·메탈릭 맵, 2048² / 벽: 알파 테스트) — 빛 계산하는 3D 재질
+  - 스포트라이트 2개, 강도 2000, 그림자 없음
+  - 불 연출: `FireContainer` 12개, 셰이더 `SH_Vefects_VFX_URP_Fire_Flames_01`(패스 4, 노이즈 텍스처 여러 장), 파티클 시스템 25개 (초당 1개, prewarm) → 입자 수는 적고 **큰 쿼드의 픽셀 셰이더 비용**이 핵심 [추론]
+  - 단상 `Court_Stand` 13~14개: 투명 Lit (premultiply)
+  - `Court.ChangeFireFxActivity`: 불 오브젝트 SetActive + 스포트라이트 색을 불빛 색(1, 0.4, 0.2)으로 (ev_336c2b33c95f2a46)
+- `StageCameraController.SetCameraEnabled(bool)`이 **두 카메라를 함께** 켜고 끔. `Present`/`Dismiss`가 이것만 부름 (ev_1c598cc193990d13)
+- 화면 분할·표시는 `StageScreenController`가 화면 컨테이너의 CanvasGroup 알파와 Quadrilateral 모양으로만 바꿈 [관찰: ISIL] → **한 화면만 보일 때도 두 카메라가 모두 1920x1080을 그림** [추론]
+- 무대 카메라 컬링 마스크가 Default라 액터 레이어(0)도 포함 → 캐릭터 쿼드가 무대 카메라에서도 그려짐 [관찰: 마스크 / 추론: 실제 배치]
+
+### 6.3 결론
+
+- 재판 중 프레임마다 URP 전체 렌더가 **메인 1 + 무대 2 + 보이는 레이어 캐릭터 수**만큼 돌고, 각각 SSAO·중간 텍스처(4장)를 실행 [추론]
+- 무대 카메라는 Lit 셰이딩 + 불 셰이더 + SSAO + MSAA 2x + FXAA를 1920x1080 두 장에 함 → **게임 자체 렌더 구성도 큰 원인** [추론]
+- 입자(파티클)는 수가 적어 원인이 아님 (사용자 판단과 같음). 단 불 셰이더의 픽셀 비용은 별개 [추론]
+
+## 7. GUI·텍스트
+
+| 항목 | 내용 |
+|---|---|
+| UI 카메라 | `UseUICamera=0`. UI 캔버스는 Screen Space-Camera로 **메인 카메라**에 그려짐 [관찰] → UI도 메인 카메라의 MSAA 4x·SSAO·중간 텍스처·FXAA 비용을 같이 냄 [추론] |
+| 캔버스 수 | UI 번들 88개 (renderMode 값: Overlay 14, Camera 19, World 55), 연출 번들 13개 [관찰]. World 값은 대부분 상위 캔버스를 따르는 중첩 캔버스로 봄 [추론] |
+| TrueShadow | UI 번들 390개 (켜짐 278). 257개는 메뉴 라벨(`PauseOrUnpause`+TMP), 83개는 `Animation` 붙은 TMP 라벨, 블러 크기 20 [관찰] |
+| TrueShadow 동작 | 그림자 텍스처는 내용이 바뀔 때만 다시 만듦 [추론: 라이브러리 구조]. 다만 `ShadowRenderer.LateUpdate`가 그림자마다 매 프레임 돎. 화면을 숨길 때 캔버스만 끄면(GameObject는 켜짐) 계속 돎 [추론] → CPU 비용 [미확인] |
+| 대사 출력 | `RevealableTextModified`(TMP) 1개 + `RevealFader`/`RevealClipper`. 그림자는 대사창 배경 Image에만(정적) [관찰] |
+| 글꼴 | TMP Dynamic 아틀라스 → 처음 나오는 글자마다 래스터화·텍스처 업로드 [관찰: 모드 / 추론: 순간 끊김] |
+| FXAA | 메인 카메라 포스트의 FXAA가 글자 가장자리를 약간 흐림 [추론] |
+
+- 결론: GUI·텍스트가 **불필요하게 매 프레임 다시 그려지는 증거는 없음**. 비용은 UI가 3D 템플릿 설정의 메인 카메라에 실려 있는 데서 나옴 [추론]
+
+## 8. 프레임 제한·해상도
+
+- 설정 `CameraConfigurationExtended`: `TargetFpsValues [60, 30]`, 기본 `TargetFpsLevel 0`(60), 해상도 목록 2560x1440~1280x720, 기본 `ResolutionLevel 0`, 전체 화면, 포스트 프로세싱 켬 [관찰]
+- `CameraManagerExtended.SetTargetFpsLevel` → 엔진 내부 호출로 `Application.targetFrameRate` 설정 (ev_02d73111d1d7b816). `set_TargetFpsLevel`과 같은 기계어 [관찰: ICF]
+- VSync는 품질 단계가 정함. 게임 코드에서 `QualitySettings.set_vSyncCount`가 빌드에서 제거됨 → 게임은 VSync를 직접 바꾸지 않음 [관찰]
+- `SetResolutionLevel` → `Screen.SetResolution` (ev_cbe7b0c5b592f7eb). 목록은 `IsWithinResolutionRange`로 모니터 해상도 이하만 남김 [관찰: 호출 / 추론: 의미]
+- Naninovel 설정: 기준 해상도 2560x1440, 기준 PPU 100, 저장 썸네일 480x270 [관찰]
+
+## 9. IL2CPP 모드 제약
+
+### 9.1 빌드에서 제거된 API (대체 수단)
+
+| 제거됨 | 대체 |
+|---|---|
+| `QualitySettings.set_vSyncCount`/`get_vSyncCount` | `IL2CPP.ResolveICall("UnityEngine.QualitySettings::set_vSyncCount")` |
+| `RenderTexture.IsCreated`, `set_antiAliasing` | `ResolveICall` |
+| `ScreenCapture.CaptureScreenshot`, `ImageConversion.EncodeToPNG` | `CaptureScreenshotAsTexture` + `EncodeToJPG` |
+| `Object.GetInstanceID` | interop 객체의 `Pointer` |
+
+엔진 내부 호출(icall)은 UnityPlayer.dll에 남아 있어 관리 코드가 제거돼도 쓸 수 있음.
+
+### 9.2 ICF (코드 합침) 주의
+
+| 메서드 | 같은 기계어를 쓰는 다른 메서드 | 대응 |
+|---|---|---|
+| `LayeredDrawer.Dispose` | Linq 식 getter 등 4개 | `ClearLayers`를 패치 (Dispose·재구성 모두 거침) |
+| `StageCameraContainer.SetCameraEnabled` | `CreditRoll.SetCanvasEnabled` | `StageCameraController.SetCameraEnabled`를 패치 |
+| `LayeredActorBehaviour.get_Animated` | getter 45개 | 패치 금지 |
+| `LayeredCharacter..ctor` | `LayeredCharacterExtended..ctor` | 생성자 대신 `TransitionalRenderer.CreateFor` 패치 |
+
+Harmony는 기계어 주소를 가로채므로, 공유 주소를 패치하면 다른 메서드까지 바뀜.
+
+### 9.3 빌드 환경
+
+- 컴파일용 interop 어셈블리: BepInEx가 첫 실행 때 `BepInEx/interop`에 만듦. 설치 전에는 Cpp2IL 2022.1.0-dev.1452 + Il2CppInterop.Generator 1.5.3(be.785와 같은 버전)으로 직접 생성해 `-p:InteropDir=`로 지정
+- 대상 프레임워크 net6.0 (BepInEx 6 IL2CPP 런타임)
+
+## 10. 렌더 실험실 측정 결과
+
+- 아직 없음. 측정 절차는 `mahosaba-render.md` 3장
+
+## 11. 분석 방법
+
+| 도구 | 용도 |
+|---|---|
+| REA 6.4.0 + Ghidra 12.1.3 | `GameAssembly.dll` 디컴파일. Cpp2IL 덤프에서 만든 함수 시드 94,842개(주소·이름)를 분석 전에 넣어 이름 있는 의사코드를 얻음. 전체 분석 약 27분. MCP stdio 세션 하나로 39개 함수 `analyze_function` |
+| REA `inspect-managed-members` | `GigaCreation.NaninovelExtender.ExtendedActors` 더미 어셈블리 멤버 목록 (ev_161a58b13b809c6d) |
+| Cpp2IL 2022.1.0-dev.1452 | 메타데이터 → 더미 DLL·시그니처(RVA)·ISIL(명령 수준) |
+| UnityPy 1.25.4 + TypeTreeGeneratorAPI | 번들·씬·설정 에셋 읽기. IL2CPP라 MonoBehaviour 타입트리는 더미 DLL에서 생성 |
+
+- REA 기본 Ghidra 시간 제한(330초)으로는 54 MB 바이너리 분석이 끝나지 않음 → `REA_GHIDRA_STARTUP_TIMEOUT_MS`를 늘리고 `REA_GHIDRA_SEED_FILE`로 시드 지정
+- 한계: 정적 분석만 함. 가상·인터페이스 호출의 호출자는 정적으로 못 찾음 (5.4 `animated` 소비자). GPU 비용 수치는 모두 [추론]
+
+### 근거 ID (REA analyze_function)
+
+| 주소 | 메서드 | 근거 |
+|---|---|---|
+| 0x18084ED10 | LayeredActor.RenderAppearance | ev_396046bcba1f543a |
+| 0x180464030 | LayeredActorBehaviour.Render | ev_a3e3f623f6f7abd1 |
+| 0x180464210 | LayeredActorBehaviour.CreateDrawer | ev_dfd1ed6fa6d07fba |
+| 0x180468BF0 | LayeredDrawer.DrawLayers | ev_c553aa36a57971a8 |
+| 0x1804697F0 | LayeredDrawer.DrawWithCamera | ev_9fe04d4d38a61ec2 |
+| 0x18046A9A0 | LayeredDrawer.PrepareRenderTexture | ev_5ba4089c7240b185 |
+| 0x18046BCE0 | LayeredDrawer.HoldCameraLayer | ev_af83d8de164c2b70 |
+| 0x1805F7970 | TransitionalSpriteRenderer.Update | ev_650744b26b6f65ea |
+| 0x1805F85B0 | TransitionalSpriteRenderer.PrepareRenderTexture | ev_b73807cb15d72912 |
+| 0x1805F28B0 | TransitionalRenderer.ShouldRender | ev_6cf33aa86fef8d65 |
+| 0x1805F2A70 | TransitionalRenderer.RenderToTexture | ev_7aca6fcccbb640e6 |
+| 0x1805F3600 | TransitionalRenderer.LateUpdate | ev_30de49797ec8a9d7 |
+| 0x180C5B320 | DicedSpriteActor.RenderToTexture | ev_1b591d73f29e3a9d |
+| 0x180D25820 | LayerModifier.ModifyLayers | ev_7d6dcc76fdef656c |
+| 0x180389D20 | StageCameraController.SetCameraEnabled | ev_1c598cc193990d13 |
+| 0x180385AD0 | Court.ChangeFireFxActivity | ev_336c2b33c95f2a46 |
+| 0x180CFB8E0 | CameraManagerExtended.SetTargetFpsLevel | ev_02d73111d1d7b816 |
+| 0x180CFCCF0 | CameraManagerExtended.SetResolutionLevel | ev_cbe7b0c5b592f7eb |
+
+## 12. 미확인
+
+- 레이어 캐릭터가 실제로 매 프레임 다시 합성되는지 (렌더 실험실 `layerDraw`/프레임)
+- 실제 GPU 시간 분포 (Iris Xe, 1080p)
+- 한 화면만 보일 때 두 번째 무대 카메라가 정말 그리는지 (`stageSkip`)
+- 1080p 모니터에서 기본 해상도 단계가 실제로 고르는 해상도
+- TrueShadow `LateUpdate`의 CPU 비용
+- 재현 연출(`SpawnableReenactment`, SpriteSkin 343개)의 변형 비용
