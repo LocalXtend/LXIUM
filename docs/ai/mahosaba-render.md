@@ -37,12 +37,12 @@
 | B3 | 액터 원래 해상도 | 레이어 캐릭터 메타데이터 PPU를 `화면 높이 / 1440`배로(1080p: 0.75 → 1125x2250, 픽셀 56%). 합성 RT와 화면 쿼드가 같이 줄어 화면상 크기 그대로 | Spatial Resolution을 "월드 = 화면 밖 액터 합성"에만 적용. UI·대사는 메인 카메라라 영향 없음 | 구현 `Character.Resolution` |
 | B4 | 무대 가시성 컬링 | 게임이 무대를 띄운 동안에도, RawImage의 상속 알파가 0인 화면의 카메라는 끔 | — | 구현 `Stage.HiddenSkip` (2차: -10.2 ms) |
 | B5 | 무대 해상도 | `RenderTexture_1/2`를 화면 높이에 맞춰 줄임(원래 화면과 무관하게 1920x1080). RawImage가 화면 크기로 보여 주므로 화면보다 큰 RT는 낭비. 해상도를 바꾸면 따라감 | Spatial Resolution | 구현 `Stage.Resolution` (기본 0 = 화면 맞춤, 0.1.1. 3차: 768p에서 -5.1 ms, 세밀한 무늬에서 화소 차이 2.6%) |
-| B6 | 무대 반 프레임 | 무대 카메라의 위치·회전·FOV가 지난 프레임과 같으면 두 프레임에 한 번만 그림(두 카메라는 번갈아). 그 사이에는 RT의 지난 그림을 RawImage가 그대로 보여 줌. 카메라가 움직이는 프레임은 항상 그려서 팬·줌이 끊기지 않음. 불·캐릭터 변화는 최대 1프레임 늦음 | Temporal Frame Reprojection | 실험 `Stage.HalfRate` (0.2.0) |
-| B10 | 무대 MSAA 끄기 | `RenderTexture_1/2.antiAliasing` 2 → 1 (`Release` 후 변경). 가장자리는 무대 카메라의 FXAA가 다듬음 | — | 실험 `Stage.MsaaOff` (0.2.0) |
-| B11 | 무대 후처리 끄기 | 무대 카메라 `UniversalAdditionalCameraData.renderPostProcessing = false`. 볼륨 효과가 모두 0이라 후처리는 색 보정 LUT 만들기 + 우버 패스 + FXAA뿐이고, 메인 카메라가 화면 전체에 FXAA를 한 번 더 함 | — | 실험 `Stage.PostOff` (0.2.0) |
-| B12 | 깊이 프라이밍 | SSAO의 DepthNormals 프리패스 깊이로 불투명 패스를 `ZTest Equal` → Lit 픽셀 셰이더가 픽셀당 1회. 데스크톱에서는 `Auto`도 모든 카메라에 프리패스를 더하므로, `beginCameraRendering`에서 실제 렌더러(`asset.scriptableRenderer`)의 `depthPrimingMode`를 무대 카메라만 `Forced`로. URP는 MSAA RT에서 프라이밍을 쓰지 않으므로 B10과 함께 | Render Fast | 실험 `Urp.DepthPriming` (0.2.0) |
-| B13 | SSAO 가볍게 | `ScreenSpaceAmbientOcclusion.m_Settings`: `Downsample = true`, `Samples = Low`, `BlurQuality = Low`. 매 프레임 설정을 읽으므로 바로 적용 | Spatial Resolution | 실험 `Urp.Ssao = StageLite` (0.2.0) |
-| B14 | SSAO 끄기 + 깊이 | SSAO를 끄면 무대 카메라에 깊이 텍스처가 없어져 원본 불 셰이더의 깊이 페이드가 깨질 수 있으므로 무대 카메라 `requiresDepthOption = On` (MSAA 깊이 복사만 함) | — | `Urp.Ssao = Off` (0.2.0부터 깊이 유지) |
+| B6 | 무대 반 프레임 | 무대 카메라의 위치·회전·FOV가 지난 프레임과 같으면 두 프레임에 한 번만 그림(두 카메라는 번갈아). 그 사이에는 RT의 지난 그림을 RawImage가 그대로 보여 줌. 카메라가 움직이는 프레임은 항상 그려서 팬·줌이 끊기지 않음. 불·캐릭터 변화는 최대 1프레임 늦음 | Temporal Frame Reprojection | 선택 `Stage.HalfRate` (4차: -2.0 ms, 정지 장면 화면 같음. 프레임 시간이 번갈아 짧고 길어 기본은 끔) |
+| B10 | 무대 MSAA 끄기 | `RenderTexture_1/2.antiAliasing` 2 → 1 (`Release` 후 변경). 가장자리는 무대 카메라의 FXAA가 다듬음 | — | 기본 켬 `Stage.MsaaOff` (0.2.1. 4차: -1.13 ms, 화면 차이 0) |
+| B11 | 무대 후처리 끄기 | 무대 카메라 `UniversalAdditionalCameraData.renderPostProcessing = false`. 볼륨 효과가 모두 0이라 후처리는 색 보정 LUT 만들기 + 우버 패스 + FXAA뿐이고, 메인 카메라가 화면 전체에 FXAA를 한 번 더 함 | — | 기본 켬 `Stage.PostOff` (0.2.1. 4차: -0.66 ms, 평균 1.7/255) |
+| B12 | 깊이 프라이밍 | SSAO 프리패스 깊이로 불투명 패스를 `ZTest Equal`. 실제 렌더러(`asset.scriptableRenderer`)의 `depthPrimingMode`를 무대 카메라만 `Forced`로 바꿔 실험 | Render Fast | **제거** (0.2.1. 4차: MSAA 끔 위에서 추가 이득 0) |
+| B13 | SSAO 가볍게 | `ScreenSpaceAmbientOcclusion.m_Settings`: `Downsample = true`, `Samples = Low`, `BlurQuality = Low`. 매 프레임 설정을 읽으므로 바로 적용 | Spatial Resolution | 기본 `Urp.Ssao = StageLite` (0.2.1. 4차: -1.24 ms, 법정 화소 차이 0) |
+| B14 | SSAO 끄기 + 깊이 | SSAO를 끄면 무대 카메라에 깊이 텍스처가 없어져 원본 불 셰이더의 깊이 페이드가 깨질 수 있으므로 무대 카메라 `requiresDepthOption = On` (MSAA 깊이 복사만 함) | — | `Urp.Ssao = Off`. 0.2.1부터 FireLite를 쓰는 중이면 깊이를 요청하지 않음 (4차: 깊이 요청 포함 -0.73 ms로 Lite보다 느렸음) |
 | B7 | 제로 카피 액터 | `TransitionalSpriteRenderer`의 RT 단계를 없애고 `DrawMesh`에서 전환 셰이더로 화면에 바로 그림 (전환·색·블러를 한 패스로) | Render Fast | 후보 (C1 필요할 수 있음) |
 | B8 | 절차적 레이어 합성 | 캐릭터의 `renderCamera`를 비워 Naninovel 절차적 경로(CommandBuffer)로. URP 카메라 1회가 DrawMesh 몇 개로 바뀜. 스텐실 마스크 재질 호환 확인 필요 | Render Fast | 후보 |
 | B9 | 숨은 UI 정지 | 캔버스만 꺼진 화면의 TrueShadow·애니메이션 컴포넌트를 끔 | — | 후보 (CPU 측정 후) |
@@ -69,13 +69,13 @@ B1·B2가 켜지면 대사만 넘기는 장면에서 화면 밖 렌더는 거의
 |---|---|---|---|---|
 | C1 | `LXIUM/ActorDirect` | 전환(Naninovel `TransitionalTexture`의 전환 키워드 중 실제 쓰는 것만) + 색조 + 불투명도 + 선명화를 한 패스로 화면에 | `TransitionalMaterial` 프로퍼티(메인·전환 텍스처, 진행도, 색), 깊이 패스 컷오프 | 후보 (같은 방법으로 빌드 가능) |
 | C2 | `LXIUM/Sharpen` | B3·B5로 줄인 RT를 화면에 그릴 때 RCAS(적응형 선명화) | B3·B5 배율을 보고 강도 조절 | 후보 |
-| C3 | `LXIUM/FireLite` | 원본 불 식(mahosaba.md 6.2)에서 늘 1인 빈 텍스처 2개를 상수로, `_TextureSample2`(세로 S자 곡선)를 식으로 바꾸고 깊이 페이드를 뺌 → 텍스처 8회 → 4회. 마스크가 0인 픽셀은 `clip`으로 노이즈 2회를 건너뜀(마스크 텍스처의 54%) | 불 재질의 `shader`만 바꿈. 속성 이름이 원본과 같아 색·속도·마스크 값과 `ChangeFireFxActivity`의 켜고 끄기를 그대로 따름. 불빛 색은 스포트라이트라 영향 없음 | 구현 `Stage.FireLite` (0.2.0, D3D11 전용) |
+| C3 | `LXIUM/FireLite` | 원본 불 식(mahosaba.md 6.2)에서 늘 1인 빈 텍스처 2개를 상수로, `_TextureSample2`(세로 S자 곡선)를 식으로 바꾸고 깊이 페이드를 뺌 → 텍스처 8회 → 4회. 마스크가 0인 픽셀은 `clip`으로 노이즈 2회를 건너뜀(마스크 텍스처의 54%) | 불 재질의 `shader`만 바꿈. 속성 이름이 원본과 같아 색·속도·마스크 값과 `ChangeFireFxActivity`의 켜고 끄기를 그대로 따름. 불빛 색은 스포트라이트라 영향 없음 | 기본 켬 `Stage.FireLite` (0.2.1, D3D11 전용. 4차: 불 비용 0.93 → 0.21 ms) |
 | C4 | `LXIUM/CourtLite` | 법정 Lit 재질을 스포트라이트 2개 고정 조명용 단순 셰이딩으로 | 스포트라이트 색(불빛 색 전환) | 후보 |
 
 - FireLite 화면 차이: 불 쿼드가 벽·바닥과 만나는 1 유닛 안에서 원래는 흐려지던 경계가 또렷해짐. 그라데이션 근사 오차 0.01 안팎 [추론]
 - FireLite 적용 범위: `Resources.FindObjectsOfTypeAll<Court>()`의 `_fireVfx` 아래 렌더러 재질 중 셰이더 이름이 원본인 것. 법정 프리팹이 다시 로드될 수 있어 켜져 있는 동안 1초마다 다시 모음
 
-UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p 화면에 쿼드 몇 장 + UI라서 가능성이 높다 [추론]. 재판 장면은 Iris Xe 768p 창 모드에서 A+B1+B2+B4+B5로 115fps (mahosaba.md 10장 3차). 1080p 전체 화면은 아직 측정 전. 남은 무대 카메라 1대(Lit + 불 + SSAO)를 줄이는 실험이 B6·B10~B14·C3 (4차 측정 대기).
+UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p 화면에 쿼드 몇 장 + UI라서 가능성이 높다 [추론]. 재판 장면은 Iris Xe 768p 창 모드에서 A+B1+B2+B4+B5로 115fps (mahosaba.md 10장 3차). 1080p 전체 화면은 아직 측정 전. 4차에서 B10·B11·B13·C3 조합으로 768p 154 fps (mahosaba.md 10장 4차).
 
 ### 채택하지 않는 것
 
@@ -89,21 +89,21 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 
 1. 설정 `Debug.RenderLab = true`
 2. 캐릭터가 나오는 장면(대화) 또는 재판 장면에서 **F10**
-3. 프리셋 14개를 8초씩(안정 2초 + 측정 6초, 약 2분). 매번 설정값으로 되돌린 뒤 프리셋 하나만 적용 (0.2.0부터. 0.1.x는 누적 7단계)
+3. 프리셋 11개를 8초씩(안정 2초 + 측정 6초, 약 1분 반). 매번 설정값으로 되돌린 뒤 하나만 바꿈 (0.2.1. 0.2.0은 14개, 0.1.x는 누적 7단계)
 
    | 프리셋 | 내용 |
    |---|---|
    | `00_original` | 모든 최적화 끔, 무대 RT 1920x1080 |
    | `01_current` | 지금 설정 (기준) |
-   | `02_ssaoLite` ~ `09_stageRes75` | 기준 + B13 / B14 / B10 / B10+B12 / B11 / 메인 카메라 후처리 끔 / B6 / 무대 RT 화면의 75% |
-   | `10_fireOn` | 기준 + 지금 법정의 `_fireVfx`를 잠시 켬 (게임 상태·조명 색은 그대로, 끝나면 원래대로) |
-   | `11_fireLite` | `10_fireOn` + C3 |
-   | `12_combo` | 기준 + B13 + B10 + B12 + B11 + C3 (화면을 거의 안 바꾸는 것들) |
-   | `13_current` | 기준을 다시 잼. `01`과 차이가 크면 발열·잡음 영향 |
+   | `02_noStage` | 진단: 무대 카메라를 모두 멈춤(RT는 마지막 그림). 남는 시간 = 메인 카메라·UI·캐릭터·CPU |
+   | `03_ssaoOff` / `04_ssaoFull` | SSAO 끄기 / 원래 품질(`StageOnly`) |
+   | `05_stageHalfRate` / `06_stageRes75` / `07_mainPostOff` | B6 / 무대 RT 화면의 75% / 메인 카메라 후처리 끔 |
+   | `08_fireOn` / `09_fireOriginal` | 지금 법정의 `_fireVfx`를 잠시 켬, 설정의 불 셰이더 / 원본 셰이더 (게임 상태·조명 색은 그대로, 끝나면 원래대로) |
+   | `10_current` | 기준을 다시 잼. `01`과 차이 = 발열·잡음 → 두 기준을 시간에 따라 보간해 Δ를 냄 |
 
 4. 측정 중에는 프레임 제한·VSync를 끔. 결과는 `BepInEx/LXIUM_mahosaba/<시각>/lab.txt`와 프리셋별 스크린샷(JPG)
-5. 기록 값: fps, 프레임 시간 avg·p50·p95·p99·max, 프레임당 카메라 렌더 수, `layerDraw`/`layerSkip`(B1), `copyDraw`/`copySkip`(B2), `stageSkip`(B4·B6). `FrameTimingManager`가 켜진 빌드면 `cpuMain`·`gpu` ms, 불 프리셋은 `fire`(렌더러 수)·`fireVisible`(카메라에 보이는 수)
-6. 스크린샷을 `01_current`와 비교해 화면 변화를 확인
+5. 기록 값: fps, 프레임 시간 avg·p50·p95·p99·max, 프레임당 카메라 렌더 수, `layerDraw`/`layerSkip`(B1), `copyDraw`/`copySkip`(B2), `stageSkip`(B4·B6). `FrameTimingManager` 값이 있으면 `cpuMain`·`presentWait`(GPU 대기)·`gpu` ms (이 게임은 켜져 있으나 D3D11에서 `gpu`가 0), 불 프리셋은 `fire`(렌더러 수)·`fireVisible`(카메라에 보이는 수)
+6. 스크린샷을 `01_current`와 비교해 화면 변화를 확인. UI 장식·캐릭터가 움직이므로 법정 가운데(캐릭터·글자 없는 곳)만 잘라 비교
 7. `Character.Resolution`은 액터 생성 때 적용되므로 실험실 안에서 바뀌지 않음. 값을 바꾸고 다시 실행해 비교
 
 ## 4. 설정 (`BepInEx/config/LXIUM_mahosaba.cfg`)
@@ -112,28 +112,26 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 |---|---|---|
 | `FrameRate.TargetFps` | 0 (모니터 주사율 + VSync) | -1 = 제한 없음(VSync 끔), N = N fps(VSync 끔) |
 | `Urp.MsaaOff` | true | 없음 |
-| `Urp.Ssao` | StageOnly | 없음. `Off`면 법정 구석 음영이 약간 밝아짐 |
+| `Urp.Ssao` | StageLite (0.2.1) | 측정 장면에서 StageOnly·Off와 화소가 같음 |
 | `Urp.IntermediateAuto` | true | 없음 |
 | `Character.ChangeOnly` | true | 없음 |
 | `Character.Resolution` | 0 (화면 맞춤) | 1440p 미만에서 캐릭터를 확대하는 연출은 약간 부드러워짐 |
 | `Stage.Resolution` | 0 (화면 맞춤) | 1080p 이상에서는 원래와 같음. 그보다 낮은 화면에서는 원래 RT를 줄여 보이던 것을 화면 크기로 바로 그림. 0보다 큰 값은 고정 배율 |
 | `Stage.HiddenSkip` | true | 없음 |
-| `Stage.MsaaOff` | false | 법정 가장자리 계단이 FXAA만큼만 다듬어짐 |
-| `Stage.PostOff` | false | 거의 없음 (법정에 FXAA가 두 번 → 한 번) |
+| `Stage.MsaaOff` | true (0.2.1) | 측정 장면에서 없음 (FXAA가 다듬음) |
+| `Stage.PostOff` | true (0.2.1) | 거의 없음 (법정에 FXAA가 두 번 → 한 번, 평균 1.7/255) |
 | `Stage.HalfRate` | false | 카메라가 멈춰 있을 때 불·캐릭터 변화가 반 박자 늦음 |
-| `Stage.FireLite` | false | 불 쿼드가 벽·바닥과 닿는 경계가 또렷해짐. D3D11 전용 |
-| `Urp.DepthPriming` | false | 없음. `Stage.MsaaOff = true`일 때만 동작 |
-| `Urp.Ssao = StageLite` | — | 법정 구석 음영이 약간 부드러워짐 |
+| `Stage.FireLite` | true (0.2.1) | 불 쿼드가 벽·바닥과 닿는 경계가 또렷해질 수 있음. D3D11 전용 |
 | `Debug.RenderLab` | false | — |
 
-0.2.0의 새 항목은 4차 측정 전이라 모두 꺼 둠. 측정 결과로 기본값을 정함.
+0.2.1 기본값은 4차 측정으로 정함. 이전 버전의 설정 파일에는 옛 기본값(false/StageOnly)이 적혀 있어 그대로 남으므로, 업데이트한 사용자는 직접 바꿔야 함 (BepInEx는 파일에 있는 값을 우선)
 
 게임 옵션의 "포스트 프로세싱"을 끄면 메인 카메라에서 빠지는 것은 FXAA뿐이다 (볼륨 효과가 모두 0, mahosaba.md 4장). 글자가 약간 선명해지고 후처리 패스가 줄어든다 [추론].
 
 ## 5. 미확인
 
-- B6·B10~B14·C3의 실제 효과 (4차 측정 대기)
-- `FrameTimingManager`가 이 빌드에서 켜져 있는지 (꺼져 있으면 CPU·GPU 분리 값 없음)
+- 남은 6.5 ms 가운데 무대 카메라 몫 (`02_noStage`로 측정 예정)
+- 1080p 전체 화면 수치
 - B2의 해시가 놓치는 입력이 있는지 (전환 중 시간 기반 효과 등). 놓쳐도 1초 안에 다시 그림
 - B3 적용 시 확대 연출의 화질
 - C3을 실제 불 연출 장면에서 본 화질 (실험실은 지금 장면의 불을 강제로 켜서 봄)
