@@ -73,9 +73,10 @@ B1·B2가 켜지면 대사만 넘기는 장면에서 화면 밖 렌더는 거의
 | C1 | `LXIUM/ActorDirect` | 전환(Naninovel `TransitionalTexture`의 전환 키워드 중 실제 쓰는 것만) + 색조 + 불투명도 + 선명화를 한 패스로 화면에 | `TransitionalMaterial` 프로퍼티(메인·전환 텍스처, 진행도, 색), 깊이 패스 컷오프 | 후보 (같은 방법으로 빌드 가능) |
 | C2 | `LXIUM/Sharpen` | B3·B5로 줄인 RT를 화면에 그릴 때 RCAS(적응형 선명화) | B3·B5 배율을 보고 강도 조절 | 후보 |
 | C3 | `LXIUM/FireLite` | 원본 불 식(mahosaba.md 6.2)에서 늘 1인 빈 텍스처 2개를 상수로, `_TextureSample2`(세로 S자 곡선)를 식으로 바꾸고 깊이 페이드를 뺌 → 텍스처 8회 → 4회. 마스크가 0인 픽셀은 `clip`으로 노이즈 2회를 건너뜀(마스크 텍스처의 54%) | 불 재질의 `shader`만 바꿈. 속성 이름이 원본과 같아 색·속도·마스크 값과 `ChangeFireFxActivity`의 켜고 끄기를 그대로 따름. 불빛 색은 스포트라이트라 영향 없음 | 기본 켬 `Stage.FireLite` (0.2.1, D3D11 전용. 4차: 불 비용 0.93 → 0.21 ms) |
-| C4 | `LXIUM/CourtLite` | URP Lit ForwardLit과 같은 BRDF(GGX)·스포트라이트 감쇠·SH(감마 변환)를 쓰고, 그림자·SSAO·반사 프로브 블렌딩·박스 투영·쿠키·메인 라이트를 뺌. 반사는 전역 큐브맵 한 장(`_GlossyEnvironmentCubeMap`) | 재질의 `shader`만 바꿈. 키워드·값이 그대로라 변형 선택도 원본과 같음. 스포트라이트 색은 매 프레임 URP가 넣는 값을 그대로 읽음 | 구현 `Stage.CourtLite` (0.3.0, 기본 끔, 측정 대기) |
+| C4 | `LXIUM/CourtLite` | URP Lit ForwardLit과 같은 BRDF(GGX)·스포트라이트 감쇠·SH(감마 변환)를 쓰고, 그림자·SSAO·반사 프로브 블렌딩·박스 투영·쿠키·메인 라이트를 뺌. 반사는 전역 큐브맵 한 장(`_GlossyEnvironmentCubeMap`) | 재질의 `shader`만 바꿈. 키워드·값이 그대로라 변형 선택도 원본과 같음. 스포트라이트 색은 매 프레임 URP가 넣는 값을 그대로 읽음 | 구현 `Stage.CourtLite` (0.3.0, 기본 끔. 8차 1080p: 법정 건물 2.07 → 1.37 ms, 165 → 185 fps, 바닥·벽·계단 화소 차이 0. 단상 확인 대기) |
 
 - FireLite 화면 차이: 불 쿼드가 벽·바닥과 만나는 1 유닛 안에서 원래는 흐려지던 경계가 또렷해짐. 그라데이션 근사 오차 0.01 안팎 [추론]
+- 렌더 큐: `Material.shader`를 바꾸면 Unity가 큐를 새 셰이더 기본값으로 되돌림(Lit·CourtLite는 2000). 투명 단상(3000)이 불투명 순서로 밀려 사라졌던 문제(0.3.0)를 0.3.1에서 고침: 원본 셰이더일 때의 큐를 재질마다 기억해 바꿀 때마다 다시 넣음
 - 적용 범위: `Resources.FindObjectsOfTypeAll<Court>()` 아래(그리고 `_fireVfx` 아래) 렌더러 재질 중 셰이더 이름이 원본인 것. 법정 프리팹이 다시 로드될 수 있어 켜져 있는 동안 1초마다 다시 모음 (`CourtShaders`)
 
 **CourtLite 변형** (원본 URP Lit ForwardLit의 D3D11 변형 80개 가운데 법정 재질이 고르는 것과 같은 키워드의 3개 + 정점 1개만 남김)
@@ -138,7 +139,7 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 | `Stage.MsaaOff` | true (0.2.1) | 측정 장면에서 없음 (FXAA가 다듬음) |
 | `Stage.PostOff` | true (0.2.1) | 거의 없음 (법정에 FXAA가 두 번 → 한 번, 평균 1.7/255). 게임 옵션에서 후처리를 끄면 무대 후처리는 켜진 채로 둠 |
 | `Stage.HalfRate` | false | 카메라가 멈춰 있을 때 불·캐릭터 변화가 반 박자 늦음 |
-| `Stage.CourtLite` | false (0.3.0, 측정 대기) | 원본과 같아야 함 (그림자·SSAO·반사 프로브가 원래 없는 법정). D3D11 전용 |
+| `Stage.CourtLite` | false (0.3.1, 단상 확인 대기) | 원본과 같아야 함 (그림자·SSAO·반사 프로브가 원래 없는 법정). D3D11 전용 |
 | `Stage.FireLite` | true (0.2.1) | 불 쿼드가 벽·바닥과 닿는 경계가 또렷해질 수 있음. D3D11 전용 |
 | `Debug.RenderLab` | false | — |
 
@@ -148,7 +149,7 @@ UHD 620에서 120fps: A+B1+B2 뒤 대화 장면의 매 프레임 일은 1080p �
 
 ## 5. 미확인
 
-- CourtLite의 실제 절감과 화면 일치 여부 (0.3.0 실험실 `03`·`04`·`05`)
+- CourtLite의 단상 화질 (0.3.1 실험실 `04`·`05`)
 - B2의 해시가 놓치는 입력이 있는지 (전환 중 시간 기반 효과 등). 놓쳐도 1초 안에 다시 그림
 - B3 적용 시 확대 연출의 화질
 - C3을 실제 불 연출 장면에서 본 화질 (실험실은 지금 장면의 불을 강제로 켜서 봄)
