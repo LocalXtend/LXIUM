@@ -122,6 +122,7 @@ UTF-8 JSON. 주석 금지.
   - IL2CPP: 게임 루트에 `GameAssembly.dll`
   - Mono: `<게임>_Data/Managed/Assembly-CSharp.dll`
 - 여러 로더를 지원하면 최적화 로직은 로더와 무관한 코드로 두고, 로더별 진입점(BepInEx 플러그인 클래스, `MelonMod` 등)만 따로 둠
+- 배포: GitHub 릴리스 `<id>-v<version>`에 zip을 올리고 공식 애드온 모음을 갱신 (`catalog.md` 4장)
 
 ## 8. 패키징 후 검증
 
