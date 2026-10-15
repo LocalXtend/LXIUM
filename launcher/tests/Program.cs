@@ -88,13 +88,15 @@ finally
     Directory.Delete(work, true);
 }
 
-// IGDB 응답 해석
+// Steam 상점 응답 해석
 using var doc = System.Text.Json.JsonDocument.Parse("""
-{"name":"G","summary":"S","first_release_date":1735689600,"total_rating":81.6,"cover":{"image_id":"abc"},
- "genres":[{"name":"Adventure"}],"involved_companies":[{"developer":true,"company":{"name":"Dev"}},{"developer":false,"company":{"name":"Pub"}}]}
+{"ok":{"success":true,"data":{"name":"G","short_description":"A &amp; B","release_date":{"coming_soon":false,"date":"2025년 7월 18일"},
+  "genres":[{"id":"25","description":"어드벤처"}],"developers":["Dev"],"publishers":["Pub1","Pub2"]}},
+ "missing":{"success":false}}
 """);
-var info = Igdb.Parse(doc.RootElement);
-Check(info is { Released: "2025-01-01", Rating: 82, Developers: ["Dev"], Genres: ["Adventure"] } && info.CoverUrl!.EndsWith("abc.jpg"), "IGDB 해석");
+var info = SteamStore.Parse(doc.RootElement.GetProperty("ok"));
+Check(info is { Summary: "A & B", Released: "2025년 7월 18일", Genres: ["어드벤처"], Developers: ["Dev"], Publishers: ["Pub1", "Pub2"] }, "Steam 상점 해석");
+Check(SteamStore.Parse(doc.RootElement.GetProperty("missing")) is null, "상점에 없는 앱");
 
 Console.WriteLine("모두 통과");
 

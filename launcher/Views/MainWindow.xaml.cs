@@ -60,23 +60,20 @@ public partial class MainWindow : Window
         if (sameGame) return;
 
         DetailView.ScrollToTop();
-        ShowInfo(null, "IGDB에서 정보를 가져오는 중…");
-        SetCover(detail.Game.CapsuleUrl);
+        ShowInfo(null, "Steam 상점에서 정보를 가져오는 중…");
+        Cover.Source = detail.Game.CapsuleUrl is string url ? new BitmapImage(new Uri(url)) : null;
     }
 
     public void ShowInfo(GameInfo? info, string? message)
     {
+        static string Join(string[]? items) => items is { Length: > 0 } ? string.Join(", ", items) : "—";
         InfoName.Text = info?.Name ?? "";
         Summary.Text = info?.Summary ?? message ?? "";
         Genres.ItemsSource = info?.Genres;
         Released.Text = info?.Released ?? "—";
-        Developers.Text = info is { Developers.Length: > 0 } ? string.Join(", ", info.Developers) : "—";
-        Rating.Text = info?.Rating is int r ? $"{r} / 100" : "—";
-        if (info?.CoverUrl is string cover) SetCover(cover);
+        Developers.Text = Join(info?.Developers);
+        Publishers.Text = Join(info?.Publishers);
     }
-
-    void SetCover(string? url) =>
-        Cover.Source = url is null ? null : new BitmapImage(new Uri(url));
 
     public void Alert(string message) => MessageBox.Show(this, message, "LXIUM");
 

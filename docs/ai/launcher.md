@@ -20,17 +20,17 @@
 | `Game` | `game.id`로 애드온을 묶은 게임. 라이브러리 = 애드온이 있는 게임만 |
 | `Loaders` | `addon.md` 4장 감지 표. 버전 = 감지 DLL의 ProductVersion(`+` 뒤 제거). 새 로더는 규격 표 → `Loaders.Table` 순서로 추가 |
 | `Installer` | 변형 선택·설치·제거. 기록 `<게임 루트>/.lxium/<id>.json`, 백업 `.lxium/backup/<id>/`. zip 경로가 루트 밖이면 거부 |
-| `Igdb` | Twitch client credentials 토큰 → `api.igdb.com/v4/games`. Steam 앱 ID(`external_game_source = 1`)로 찾고 없으면 이름 검색 |
+| `SteamStore` | `store.steampowered.com/api/appdetails?appids=<steamAppId>&l=koreana`. 키 없음. 설명·장르·출시일·개발·배급. 한국어가 없으면 Steam이 영어로 돌려줌. `steamAppId`가 없으면 정보 없음 |
 
 ## 실행 폴더
 
 ```
 LXIUM.exe
 addons/<id>-<version>.zip
-settings.json            # 선택. {"igdbClientId": "...", "igdbClientSecret": "..."}
 ```
 
-- `settings.json`은 사용자 PC에만 둠. 저장소·배포 zip에 넣지 않음
+- Steam 상점 API는 공식 문서가 없음. 게임을 열 때 한 번만 호출 (과다 호출 시 차단)
+- 검토 후 쓰지 않는 정보원: IGDB·MobyGames(키 필요), SteamDB(API 없음·스크래핑 금지), VGDB(API 없음)
 
 ## 빌드
 

@@ -90,7 +90,7 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- 게임 정보 (IGDB) -->
+                <!-- 게임 정보 (Steam 상점) -->
                 <Border Style="{StaticResource Card}" Background="{StaticResource Pink}">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -140,8 +140,8 @@
                             </Border>
                             <Border Style="{StaticResource Inner}">
                                 <DockPanel>
-                                    <TextBlock Text="평점" Style="{StaticResource Desc}" FontSize="13" Width="54"/>
-                                    <TextBlock x:Name="Rating" Text="—" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
+                                    <TextBlock Text="배급" Style="{StaticResource Desc}" FontSize="13" Width="54"/>
+                                    <TextBlock x:Name="Publishers" Text="—" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Ink}" TextWrapping="Wrap"/>
                                 </DockPanel>
                             </Border>
                         </StackPanel>

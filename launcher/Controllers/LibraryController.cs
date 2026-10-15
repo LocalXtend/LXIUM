@@ -32,14 +32,19 @@ public sealed class LibraryController(MainWindow view)
     {
         current = game;
         Refresh();
+        if (game.Info.SteamAppId is not int appId)
+        {
+            view.ShowInfo(null, "lxium.json에 steamAppId가 없어 게임 정보를 가져올 수 없습니다.");
+            return;
+        }
         try
         {
-            var info = await Igdb.FindAsync(game.Info, Settings.Load(AppDir));
-            if (current == game) view.ShowInfo(info, info is null ? "IGDB에서 이 게임을 찾지 못했습니다." : null);
+            var info = await SteamStore.FindAsync(appId);
+            if (current == game) view.ShowInfo(info, info is null ? "Steam 상점에서 이 게임을 찾지 못했습니다." : null);
         }
         catch (Exception e)
         {
-            if (current == game) view.ShowInfo(null, e.Message);
+            if (current == game) view.ShowInfo(null, $"Steam 상점 정보를 가져오지 못했습니다: {e.Message}");
         }
     }
 

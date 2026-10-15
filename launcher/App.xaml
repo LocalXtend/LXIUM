@@ -11,22 +11,12 @@
         <SolidColorBrush x:Key="Teal" Color="#2F5F6E"/>
         <SolidColorBrush x:Key="TealHover" Color="#244C59"/>
 
-        <!-- 카드 배경: 분홍·초록·파랑·보라·민트 파스텔 그라디언트 -->
-        <LinearGradientBrush x:Key="Pink" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#FDEAF4" Offset="0"/><GradientStop Color="#F6CBE1" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="Green" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#F1FAE4" Offset="0"/><GradientStop Color="#D0EFB9" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="Blue" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#EAF4FE" Offset="0"/><GradientStop Color="#C9E1F8" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="Purple" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#E6E0FE" Offset="0"/><GradientStop Color="#C2B5F6" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="Mint" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#E6F8EB" Offset="0"/><GradientStop Color="#BFEACB" Offset="1"/>
-        </LinearGradientBrush>
+        <!-- 카드 배경: 분홍·초록·파랑·보라·민트 파스텔 단색 -->
+        <SolidColorBrush x:Key="Pink" Color="#F9DDEB"/>
+        <SolidColorBrush x:Key="Green" Color="#E1F4D0"/>
+        <SolidColorBrush x:Key="Blue" Color="#DCEBFB"/>
+        <SolidColorBrush x:Key="Purple" Color="#D8CFFA"/>
+        <SolidColorBrush x:Key="Mint" Color="#D3F1DB"/>
 
         <DropShadowEffect x:Key="Shadow" BlurRadius="20" ShadowDepth="3" Direction="270" Opacity="0.10" Color="#4B3F7A"/>
 
