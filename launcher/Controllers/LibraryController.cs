@@ -4,28 +4,53 @@ using LXIUM.Views;
 
 namespace LXIUM.Controllers;
 
-/// <summary>화면 이벤트를 받아 모델을 다루고, 결과를 뷰에 넘깁니다.</summary>
-public sealed class LibraryController(MainWindow view)
+/// <summary>라이브러리·게임 상세 화면의 이벤트를 받아 모델을 다루고, 결과를 뷰에 넘깁니다.</summary>
+public sealed class LibraryController(MainWindow view, AppSettings settings)
 {
-    static readonly string AppDir = AppContext.BaseDirectory;
+    public static readonly string AppDir = AppContext.BaseDirectory;
+    static string AddonsDir => Path.Combine(AppDir, "addons");
     List<Game> games = [];
+    List<CatalogEntry> remote = [];
+    List<string> libraries = [];
     Game? current;
 
-    /// <summary>addons/의 애드온을 읽고 Steam 라이브러리에서 게임을 찾습니다.</summary>
-    public async Task LoadAsync()
+    /// <summary>마지막으로 애드온 모음을 받을 때 생긴 문제 (설정 화면에 보여 줌)</summary>
+    public List<string> CatalogErrors { get; private set; } = [];
+
+    /// <summary>
+    /// Steam 라이브러리를 찾고 addons/의 애드온을 읽습니다. fetchCatalogs면 애드온 모음도 새로 받습니다.
+    /// 설치된 애드온 중 새 버전이 있는 것의 수를 돌려줍니다.
+    /// </summary>
+    public async Task<int> LoadAsync(bool fetchCatalogs)
     {
-        view.ShowBusy("게임을 찾는 중…");
-        games = await Task.Run(() => Game.Build(Addon.LoadAll(Path.Combine(AppDir, "addons")), Steam.FindLibraries()));
+        view.ShowBusy(fetchCatalogs ? "게임과 애드온 모음을 확인하는 중…" : "게임을 찾는 중…");
+        if (fetchCatalogs)
+            (remote, CatalogErrors) = await Catalogs.FetchAsync(settings.Catalogs);
+        libraries = await Task.Run(Steam.FindLibraries);
+        await Task.Run(Rebuild);
         Back();
+        return games.Where(g => g.Root is not null)
+            .Sum(g => g.Packages.Count(p => Installer.Read(g.Root!, p.Id) is { } r && Versions.Compare(p.Latest.Version, r.Version) > 0));
+    }
+
+    /// <summary>받아 둔 애드온이 바뀐 뒤(받기 등) 목록을 다시 만들고, 보던 게임을 새 객체로 바꿉니다.</summary>
+    void Rebuild()
+    {
+        games = Game.Build(Addon.LoadAll(AddonsDir), remote, libraries);
+        if (current is not null) current = games.FirstOrDefault(g => g.Info.Id == current.Info.Id);
     }
 
     public void Back()
     {
         current = null;
         foreach (var g in games)
-            g.Status = g.Root is null ? "게임 없음"
-                : g.Addons.Any(a => Installer.Read(g.Root, a.Manifest.Id) is not null || Installer.FindUntracked(a, g.Root).Count > 0)
-                    ? "모드 설치됨" : "설치 가능";
+        {
+            if (g.Root is not string root) { g.Status = "게임 없음"; continue; }
+            var records = g.Packages.Select(p => (p, r: Installer.Read(root, p.Id))).ToList();
+            g.Status = records.Any(x => x.r is not null && Versions.Compare(x.p.Latest.Version, x.r.Version) > 0) ? "업데이트 있음"
+                : records.Any(x => x.r is not null) || g.Packages.Any(p => p.AnyLocal is Addon a && Installer.FindUntracked(a, root).Count > 0) ? "모드 설치됨"
+                : "설치 가능";
+        }
         view.ShowLibrary(games);
     }
 
@@ -41,29 +66,30 @@ public sealed class LibraryController(MainWindow view)
         try
         {
             var info = await SteamStore.FindAsync(appId);
-            if (current == game) view.ShowInfo(info, info is null ? "Steam 상점에서 이 게임을 찾지 못했습니다." : null);
+            if (current?.Info.Id == game.Info.Id) view.ShowInfo(info, info is null ? "Steam 상점에서 이 게임을 찾지 못했습니다." : null);
         }
         catch (Exception e)
         {
-            if (current == game) view.ShowInfo(null, $"Steam 상점 정보를 가져오지 못했습니다: {e.Message}");
+            if (current?.Info.Id == game.Info.Id) view.ShowInfo(null, $"Steam 상점 정보를 가져오지 못했습니다: {e.Message}");
         }
     }
 
     void Refresh()
     {
-        var g = current!;
-        view.ShowDetail(new GameDetail(g, g.Root is null ? [] : Loaders.Detect(g.Root),
-            g.Addons.Select(a => g.Root is null ? new AddonRow(a, null, false)
-                : new AddonRow(a, Installer.Read(g.Root, a.Manifest.Id), Installer.FindUntracked(a, g.Root).Count > 0)).ToList()));
+        if (current is not Game g) { Back(); return; }
+        var loaders = g.Root is null ? [] : Loaders.Detect(g.Root);
+        view.ShowDetail(new GameDetail(g, loaders, g.Packages.Select(p => g.Root is null ? new AddonRow(p, null, false, loaders)
+            : new AddonRow(p, Installer.Read(g.Root, p.Id), p.AnyLocal is Addon a && Installer.FindUntracked(a, g.Root).Count > 0, loaders)).ToList()));
     }
 
     /// <summary>
-    /// addon.md 6장 설치 순서. 로더가 없고 애드온이 로더를 요구하면 사용자 확인 후 로더부터 설치합니다.
+    /// addon.md 6장 설치 순서. 고른 버전을 설치하고, 받아 두지 않은 버전이면 애드온 모음에서 먼저 받습니다.
+    /// 로더가 없고 애드온이 로더를 요구하면 사용자 확인 후 로더부터 설치합니다.
     /// </summary>
     public async Task InstallAsync(AddonRow row)
     {
         if (current?.Root is not string root) { view.Alert("게임 폴더를 찾지 못했습니다."); return; }
-        var m = row.Addon.Manifest;
+        var m = row.Selected.Manifest;
         var loader = view.SelectedLoader;
         if (loader is null && !m.Variants.ContainsKey("none"))
         {
@@ -78,22 +104,34 @@ public sealed class LibraryController(MainWindow view)
         if (variant is null) { view.Alert(error!); Refresh(); return; }
 
         var min = m.Variants[variant].MinLoaderVersion;
-        if (loader?.Id == variant && min is not null && loader.Version is not null && Loaders.Compare(loader.Version, min) < 0
+        if (loader?.Id == variant && min is not null && loader.Version is not null && Versions.Compare(loader.Version, min) < 0
             && !view.Confirm($"{loader.Name} {loader.Version}은(는) 권장 최소 버전 {min}보다 낮습니다. 그래도 설치할까요?"))
         {
             Refresh();
             return;
         }
 
-        try { Installer.Install(row.Addon, variant, root); }
+        var addon = row.Selected.Local;
+        if (addon is null)
+        {
+            view.SetBusy($"{m.Name} v{m.Version} 받는 중…");
+            try { addon = await Catalogs.DownloadAsync(row.Selected.Remote!, AddonsDir); }
+            catch (Exception e) { view.Alert($"받기 실패: {e.Message}"); }
+            finally { view.SetBusy(null); }
+            if (addon is null) return;
+        }
+
+        try { Installer.Install(addon, variant, root); }
         catch (Exception e) { view.Alert($"설치 실패: {e.Message}\n게임이 실행 중이면 끄고 다시 시도하세요."); }
+        Rebuild();
         Refresh();
     }
 
     public void Uninstall(AddonRow row)
     {
         if (current?.Root is not string root) return;
-        try { Installer.Uninstall(row.Addon, root); }
+        var local = row.Package.AnyLocal;
+        try { Installer.Uninstall(root, row.Package.Id, local is null ? null : () => Installer.FindUntracked(local, root)); }
         catch (Exception e) { view.Alert($"제거 실패: {e.Message}\n게임이 실행 중이면 끄고 다시 시도하세요."); }
         Refresh();
     }
@@ -133,9 +171,9 @@ public sealed class LibraryController(MainWindow view)
             return;
         try
         {
-            foreach (var a in current.Addons)
-                if (Installer.Read(root, a.Manifest.Id)?.Variant == loader.Id)
-                    Installer.Uninstall(a, root);
+            foreach (var p in current.Packages)
+                if (Installer.Read(root, p.Id)?.Variant == loader.Id)
+                    Installer.Uninstall(root, p.Id);
             LoaderSetup.Uninstall(loader.Id, root);
         }
         catch (Exception e) { view.Alert($"로더 제거 실패: {e.Message}\n게임이 실행 중이면 끄고 다시 시도하세요."); }
@@ -146,7 +184,7 @@ public sealed class LibraryController(MainWindow view)
     {
         if (current?.Root is not string root) return;
         var variant = row.Installed?.Variant ?? view.SelectedLoader?.Id ?? "";
-        EditConfig(ConfigFile.ModConfigPath(root, row.Addon.Manifest.Id, variant), $"{row.Title} 설정");
+        EditConfig(ConfigFile.ModConfigPath(root, row.Package.Id, variant), $"{row.Title} 설정");
     }
 
     public void OpenLoaderConfig(LoaderInfo loader)

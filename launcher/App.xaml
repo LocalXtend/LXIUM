@@ -139,6 +139,136 @@
             </Setter>
         </Style>
 
+        <!-- 아이콘: Lucide 1.57.0 (ISC, Assets/Lucide-LICENSE.txt). 24x24 선 아이콘, 원·선 요소는 경로로 바꿈 -->
+        <Geometry x:Key="IconSettings">M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915 M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0</Geometry>
+        <Geometry x:Key="IconRefresh">M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8 M21 3v5h-5 M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16 M8 16H3v5</Geometry>
+        <Geometry x:Key="IconBack">m12 19-7-7 7-7 M19 12H5</Geometry>
+        <Geometry x:Key="IconPlay">M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 0.003 3.458l-12 7A2 2 0 0 1 5 19z</Geometry>
+        <Geometry x:Key="IconFolder">m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2</Geometry>
+        <Geometry x:Key="IconDownload">M12 15V3 M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 m7 10 5 5 5-5</Geometry>
+        <Geometry x:Key="IconTrash">M10 11v6 M14 11v6 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2</Geometry>
+        <Geometry x:Key="IconPlus">M5 12h14 M12 5v14</Geometry>
+        <Geometry x:Key="IconSliders">M10 5H3 M12 19H3 M14 3v4 M16 17v4 M21 12h-9 M21 19h-5 M21 5h-7 M8 10v4 M8 12H3</Geometry>
+
+        <!-- 아이콘 하나를 글자색으로 그림. Data에 위 Geometry를 넣음 -->
+        <Style x:Key="IconPath" TargetType="Path">
+            <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Control}}"/>
+            <Setter Property="StrokeThickness" Value="2"/>
+            <Setter Property="StrokeLineJoin" Value="Round"/>
+            <Setter Property="StrokeStartLineCap" Value="Round"/>
+            <Setter Property="StrokeEndLineCap" Value="Round"/>
+        </Style>
+
+        <!-- 아이콘만 있는 둥근 버튼. Tag = 아이콘 Geometry, ToolTip = 이름 -->
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="42"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="999" BorderBrush="#E2DFEC" BorderThickness="1">
+                            <Viewbox Width="18" Height="18">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Style="{StaticResource IconPath}"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="B" Property="Background" Value="#F0EEF7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="B" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 아이콘 + 글: Primary/Ghost 버튼의 Content로 씀. Tag = 아이콘, Text = 글 -->
+        <DataTemplate x:Key="IconText">
+            <StackPanel Orientation="Horizontal">
+                <Viewbox Width="15" Height="15" Margin="0,0,7,0">
+                    <Canvas Width="24" Height="24">
+                        <Path Data="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}" Style="{StaticResource IconPath}"/>
+                    </Canvas>
+                </Viewbox>
+                <TextBlock Text="{Binding}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- 켬/끔: 살짝 둥근 버튼에 점과 "활성화/비활성화" 글. 체크박스 대신 씀 -->
+        <Style x:Key="Switch" TargetType="CheckBox">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Border x:Name="B" CornerRadius="10" Padding="12,7" MinWidth="104" Background="White"
+                                BorderBrush="#E2DFEC" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse x:Name="Dot" Width="8" Height="8" Fill="#B9B4CC" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="T" Text="비활성화" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Sub}"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="B" Property="Background" Value="{StaticResource Teal}"/>
+                                <Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Teal}"/>
+                                <Setter TargetName="Dot" Property="Fill" Value="#7FE0B0"/>
+                                <Setter TargetName="T" Property="Text" Value="활성화"/>
+                                <Setter TargetName="T" Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="B" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 슬라이더: 둥근 트랙, 지난 쪽은 청록, 손잡이는 흰 원에 청록 테두리 -->
+        <Style x:Key="TrackFill" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Height="8" CornerRadius="4" Background="{TemplateBinding Background}"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SoftSlider" TargetType="Slider">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Track x:Name="PART_Track" Height="22">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource TrackFill}" Background="{StaticResource Teal}" Command="Slider.DecreaseLarge"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource TrackFill}" Background="#E2DFEC" Command="Slider.IncreaseLarge"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Ellipse Width="20" Height="20" Fill="White" Stroke="{StaticResource Teal}" StrokeThickness="3" Effect="{StaticResource Shadow}"/>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <ItemsPanelTemplate x:Key="Wrap">
             <WrapPanel/>
         </ItemsPanelTemplate>

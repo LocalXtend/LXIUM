@@ -35,12 +35,20 @@
                                         <DataTemplate>
                                             <Border Style="{StaticResource Inner}" Margin="0,0,0,10">
                                                 <DockPanel>
-                                                    <!-- 값 편집: 참/거짓 = 체크, 선택지 = 목록, 그 밖 = 글 -->
-                                                    <Grid DockPanel.Dock="Right" Width="200" VerticalAlignment="Center" Margin="16,0,0,0">
-                                                        <CheckBox IsChecked="{Binding BoolValue}" Content="켬" HorizontalAlignment="Right"
+                                                    <!-- 값 편집: 참/거짓 = 활성화 버튼, 선택지 = 목록, 범위 숫자 = 슬라이더 + 값, 그 밖 = 글 -->
+                                                    <Grid DockPanel.Dock="Right" Width="260" VerticalAlignment="Center" Margin="16,0,0,0">
+                                                        <CheckBox IsChecked="{Binding BoolValue}" Style="{StaticResource Switch}" HorizontalAlignment="Right"
                                                                   Visibility="{Binding IsBool, Converter={StaticResource Vis}}"/>
                                                         <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Value}"
                                                                   Visibility="{Binding HasChoices, Converter={StaticResource Vis}}"/>
+                                                        <DockPanel Visibility="{Binding IsSlider, Converter={StaticResource Vis}}">
+                                                            <TextBox DockPanel.Dock="Right" Width="64" Margin="10,0,0,0" Padding="6,4" TextAlignment="Right"
+                                                                     Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"/>
+                                                            <Slider Style="{StaticResource SoftSlider}" VerticalAlignment="Center"
+                                                                    Minimum="{Binding Min, Mode=OneTime}" Maximum="{Binding Max, Mode=OneTime}"
+                                                                    TickFrequency="{Binding TickFrequency, Mode=OneTime}" IsSnapToTickEnabled="{Binding Snap, Mode=OneTime}"
+                                                                    Value="{Binding NumberValue}"/>
+                                                        </DockPanel>
                                                         <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Padding="6,4"
                                                                  Visibility="{Binding IsText, Converter={StaticResource Vis}}"/>
                                                     </Grid>

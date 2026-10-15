@@ -96,11 +96,13 @@ public static class Installer
     /// 기록된 파일 삭제 → 백업 복원 → 비게 된 폴더 삭제. 기록에 없는 파일(설정·로그)은 남깁니다.
     /// 기록이 없으면 게임 폴더에 있는 이 애드온 자신의 파일만 지웁니다.
     /// </summary>
-    public static void Uninstall(Addon addon, string root)
+    public static void Uninstall(Addon addon, string root) => Uninstall(root, addon.Manifest.Id, () => FindUntracked(addon, root));
+
+    /// <summary>zip 없이 id로 제거. 기록이 없을 때 지울 파일은 untracked가 알려 줌 (없으면 아무것도 안 지움)</summary>
+    public static void Uninstall(string root, string id, Func<List<string>>? untracked = null)
     {
-        var id = addon.Manifest.Id;
         var record = Read(root, id);
-        foreach (var rel in record?.Files ?? FindUntracked(addon, root))
+        foreach (var rel in record?.Files ?? untracked?.Invoke() ?? [])
         {
             var path = SafePath(root, rel);
             if (File.Exists(path)) File.Delete(path);

@@ -22,12 +22,20 @@ public sealed record Addon(string ZipPath, Manifest Manifest)
         using var zip = ZipFile.OpenRead(zipPath);
         var entry = zip.GetEntry("lxium.json") ?? throw new InvalidDataException("lxium.json 없음");
         using var s = entry.Open();
-        var m = JsonSerializer.Deserialize<Manifest>(s, Json) ?? throw new InvalidDataException("lxium.json 비어 있음");
-        if (m.Schema != 1) throw new InvalidDataException($"지원하지 않는 schema {m.Schema}");
+        return new Addon(zipPath, Validate(JsonSerializer.Deserialize<Manifest>(s, Json)));
+    }
+
+    /// <summary>lxium.json 필수 규칙 검사 (addon.md 3장). zip과 애드온 모음이 함께 씀</summary>
+    public static Manifest Validate(Manifest? m)
+    {
+        if (m is null) throw new InvalidDataException("lxium.json 비어 있음");
+        if (m.Schema != 1) throw new InvalidDataException($"지원하지 않는 schema {m.Schema} (런처를 업데이트하세요)");
         if (!Regex.IsMatch(m.Id ?? "", "^[A-Za-z0-9_.-]+$") || !Regex.IsMatch(m.Game?.Id ?? "", "^[a-z0-9-]+$"))
             throw new InvalidDataException("id 형식 오류");
+        if (!Regex.IsMatch(m.Version ?? "", @"^\d+\.\d+\.\d+$")) throw new InvalidDataException("version은 x.y.z");
+        if (string.IsNullOrWhiteSpace(m.Name) || string.IsNullOrWhiteSpace(m.Game!.Exe)) throw new InvalidDataException("name·game.exe 없음");
         if (m.Variants is not { Count: > 0 }) throw new InvalidDataException("variants 없음");
-        return new Addon(zipPath, m);
+        return m;
     }
 
     /// <summary>읽을 수 없는 zip은 건너뜁니다.</summary>

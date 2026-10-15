@@ -10,11 +10,11 @@ static void Check(bool ok, string what)
 }
 
 // 로더 버전 비교
-Check(Loaders.Compare("6.0.0-be.785", "6.0.0-be.785") == 0, "같은 버전");
-Check(Loaders.Compare("6.0.0-be.697", "6.0.0-be.785") < 0, "프리릴리스 번호 비교");
-Check(Loaders.Compare("6.0.0", "6.0.0-be.785") > 0, "정식 > 프리릴리스");
-Check(Loaders.Compare("5.4.23.2", "5.4.21") > 0, "숫자 자리 비교");
-Check(Loaders.Compare("6.0.0-be.785+abc", "6.0.0-be.785") == 0, "빌드 메타 무시");
+Check(Versions.Compare("6.0.0-be.785", "6.0.0-be.785") == 0, "같은 버전");
+Check(Versions.Compare("6.0.0-be.697", "6.0.0-be.785") < 0, "프리릴리스 번호 비교");
+Check(Versions.Compare("6.0.0", "6.0.0-be.785") > 0, "정식 > 프리릴리스");
+Check(Versions.Compare("5.4.23.2", "5.4.21") > 0, "숫자 자리 비교");
+Check(Versions.Compare("6.0.0-be.785+abc", "6.0.0-be.785") == 0, "빌드 메타 무시");
 
 // VDF 읽기
 const string vdf = """
@@ -149,7 +149,9 @@ try
     var cfg = ConfigFile.Load(bepPath);
     var entries = cfg.Sections.SelectMany(s => s.Entries).ToDictionary(e => e.Key);
     Check(cfg.Sections is [{ Name: "Frame Rate" }] && entries.Count == 4, "BepInEx 섹션·항목");
-    Check(entries["TargetFps"] is { Description: "목표 fps", Type: "Int32", Default: "0", Range: "From -1 to 240", IsText: true }, "BepInEx 주석 해석");
+    Check(entries["TargetFps"] is { Description: "목표 fps", Type: "Int32", Default: "0", Range: "From -1 to 240", IsSlider: true, Min: -1, Max: 240 }, "BepInEx 주석 해석");
+    entries["TargetFps"].NumberValue = 143.6;
+    Check(entries["TargetFps"].Value == "144", "슬라이더 정수 반올림");
     Check(entries["MsaaOff"].IsBool && entries["Ssao"] is { HasChoices: true, Choices: ["Off", "Low", "High"] }, "참/거짓·선택지 판별");
 
     Check(entries["Log"] is { Flags: true, IsText: true, Description: "로그" }, "플래그 열거형은 글 입력");
@@ -180,6 +182,81 @@ try
 finally
 {
     Directory.Delete(cfgDir, true);
+}
+
+// 애드온 모음: https·sha256 없는 항목은 빼고, 받은 것과 모음 버전을 합쳐 최신순으로
+var manifestJson = """{"schema":1,"id":"LXIUM_test","name":"Test","version":"1.1.0","game":{"id":"test","name":"Test","exe":"Test.exe"},"variants":{"bepinex6":{"minLoaderVersion":"6.0.0-be.800"}}}""";
+var hash = new string('a', 64);
+var catJson = $$"""
+{"schema":1,"name":"모음","addons":[
+ {"url":"https://x/a.zip","sha256":"{{hash}}","manifest":{{manifestJson}}},
+ {"url":"http://x/b.zip","sha256":"{{hash}}","manifest":{{manifestJson}}},
+ {"url":"https://x/c.zip","sha256":"no","manifest":{{manifestJson}}}]}
+""";
+var catErrors = new List<string>();
+var cat = Catalogs.Parse(catJson, "https://x/catalog.json", catErrors);
+Check(cat is [{ Source: "모음" }] && catErrors.Count == 2, "모음 해석 (http·sha256 없는 항목 제외)");
+
+// 모음 항목 받기 검사: sha256·lxium.json이 맞을 때만 addons/에 둠
+var storeDir = Directory.CreateTempSubdirectory("lxium-store").FullName;
+try
+{
+    var zipFile = Path.Combine(storeDir, "src.zip");
+    MakeZip(zipFile, new() { ["lxium.json"] = manifestJson, ["bepinex6/BepInEx/plugins/LXIUM_test/a.dll"] = "x" });
+    var good = cat[0] with { Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(zipFile))) };
+    var addonsOut = Path.Combine(storeDir, "addons");
+    await using (var s = File.OpenRead(zipFile))
+        Check((await Catalogs.StoreAsync(s, good, addonsOut)).ZipPath.EndsWith("LXIUM_test-1.1.0.zip"), "모음 항목 저장");
+    File.Delete(Path.Combine(addonsOut, "LXIUM_test-1.1.0.zip"));
+    var badHash = false;
+    await using (var s = File.OpenRead(zipFile))
+        try { await Catalogs.StoreAsync(s, cat[0], addonsOut); } catch (InvalidDataException) { badHash = true; }
+    var otherVersion = false;
+    await using (var s = File.OpenRead(zipFile))
+        try { await Catalogs.StoreAsync(s, good with { Manifest = good.Manifest with { Version = "9.9.9" } }, addonsOut); } catch (InvalidDataException) { otherVersion = true; }
+    Check(badHash && otherVersion && !Directory.EnumerateFiles(addonsOut).Any(), "sha256·버전이 다르면 거부하고 남기지 않음");
+}
+finally
+{
+    Directory.Delete(storeDir, true);
+}
+
+var m100 = cat[0].Manifest with { Version = "1.0.0", Variants = new() { ["bepinex6"] = new(null) } };
+var built = Game.Build([new Addon("local.zip", m100)], cat, []);
+Check(built is [{ Packages: [{ Versions: [{ Version: "1.1.0", Local: null }, { Version: "1.0.0", Local: not null }] }] }], "받은 것·모음 버전 합치기 (최신순)");
+Check(Game.Build([], cat, []).Count == 0, "설치 안 된 게임의 모음 항목은 라이브러리에서 뺌");
+
+var pkg = built[0].Packages[0];
+var bep788 = new LoaderInfo("bepinex6", "BepInEx 6", "6.0.0-be.788");
+var addonRow = new AddonRow(pkg, new InstallRecord("LXIUM_test", "1.0.0", "bepinex6", [], []), false, [bep788]);
+Check(addonRow.InstallLabel == "받아서 업데이트" && addonRow.Status.Contains("v1.1.0 있음") && addonRow.Compat!.Contains("6.0.0-be.800"), "업데이트·로더 버전 호환 표시");
+addonRow.Selected = pkg.Versions[1];
+Check(addonRow.InstallLabel == "재설치" && addonRow.Compat is null, "버전 고르기");
+Check(new AddonRow(pkg, null, false, [new LoaderInfo("melonloader", "MelonLoader", "0.7.3")]).Compat!.Contains("맞지 않음"), "다른 로더와 호환 안 됨 표시");
+
+// 런처 릴리스: LXIUM-v 태그의 정식 릴리스 중 지금보다 새 최신
+using var relDoc = System.Text.Json.JsonDocument.Parse("""
+[{"tag_name":"LXIUM-v1.2.0","prerelease":false,"draft":false,"assets":[{"name":"LXIUM-1.2.0-portable.zip","browser_download_url":"https://x/1.2.0.zip"}]},
+ {"tag_name":"LXIUM-v2.0.0","prerelease":true,"draft":false,"assets":[{"name":"LXIUM-2.0.0-portable.zip","browser_download_url":"https://x/2.zip"}]},
+ {"tag_name":"LXIUM_mahosaba-v9.0.0","prerelease":false,"draft":false,"assets":[{"name":"LXIUM_mahosaba-9.0.0.zip","browser_download_url":"https://x/m.zip"}]},
+ {"tag_name":"LXIUM-v1.1.0","prerelease":false,"draft":false,"assets":[{"name":"LXIUM-1.1.0-portable.zip","browser_download_url":"https://x/1.1.0.zip"}]}]
+""");
+Check(Updater.Pick(relDoc.RootElement, "1.0.0") is { Version: "1.2.0", ZipUrl: "https://x/1.2.0.zip" } && Updater.Pick(relDoc.RootElement, "1.2.0") is null, "런처 릴리스 고르기");
+
+// 런처 설정: 없으면 기본값(공식 모음, 자동 확인), 저장 후 다시 읽기
+var setDir = Directory.CreateTempSubdirectory("lxium-set").FullName;
+try
+{
+    var st = AppSettings.Load(setDir);
+    Check(st is { AutoUpdate: true, Catalogs: [AppSettings.OfficialCatalog] }, "런처 설정 기본값");
+    st.AutoUpdate = false;
+    st.Catalogs.Add("https://example.com/catalog.json");
+    st.Save(setDir);
+    Check(AppSettings.Load(setDir) is { AutoUpdate: false, Catalogs.Count: 2 }, "런처 설정 저장·읽기");
+}
+finally
+{
+    Directory.Delete(setDir, true);
 }
 
 // 실제 배포처에서 로더 받기 (네트워크 필요): dotnet run --project launcher/tests -- --net

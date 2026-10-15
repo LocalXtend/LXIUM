@@ -33,9 +33,13 @@ public static class Loaders
         }
         return found;
     }
+}
 
+/// <summary>버전 문자열 비교 (로더·애드온·런처 공통)</summary>
+public static class Versions
+{
     /// <summary>
-    /// 로더 버전 비교. "6.0.0-be.785"처럼 숫자 부분을 먼저 비교하고, 같으면 정식 &gt; 프리릴리스, 둘 다 프리릴리스면 그 숫자로 비교.
+    /// 버전 비교. "6.0.0-be.785"처럼 숫자 부분을 먼저 비교하고, 같으면 정식 &gt; 프리릴리스, 둘 다 프리릴리스면 그 숫자로 비교.
     /// </summary>
     public static int Compare(string a, string b)
     {

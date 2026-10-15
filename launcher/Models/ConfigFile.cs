@@ -1,13 +1,24 @@
+using System.ComponentModel;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace LXIUM.Models;
 
-/// <summary>설정 항목 하나. Value를 바꾼 뒤 ConfigFile.Save로 저장합니다.</summary>
-public sealed class ConfigEntry
+/// <summary>설정 항목 하나. Value를 바꾼 뒤 ConfigFile.Save로 저장합니다. Value가 바뀌면 화면의 다른 편집기(슬라이더·글)도 따라 바뀝니다.</summary>
+public sealed class ConfigEntry : INotifyPropertyChanged
 {
+    static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+    string value = "";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public required string Key { get; init; }
-    public string Value { get; set; } = "";
+    public string Value
+    {
+        get => value;
+        set { this.value = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null)); }
+    }
     public string? Description { get; init; }
     public string? Type { get; init; }
     public string? Default { get; init; }
@@ -23,10 +34,30 @@ public sealed class ConfigEntry
     internal bool Quoted { get; init; }
     internal string Original { get; set; } = "";
 
-    public bool IsBool => Type is "Boolean" || Value is "true" or "false";
+    /// <summary>편집기 종류는 처음 읽은 값으로 정합니다 (입력 중에 바뀌지 않게)</summary>
+    public bool IsBool => Type is "Boolean" || Original is "true" or "false";
     public bool HasChoices => !IsBool && !Flags && Choices.Length > 0;
-    public bool IsText => !IsBool && !HasChoices;
+    public bool IsSlider => !IsBool && !HasChoices && !Flags && Min is not null && Max is not null && Min < Max;
+    public bool IsText => !IsBool && !HasChoices && !IsSlider;
     public bool BoolValue { get => Value == "true"; set => Value = value ? "true" : "false"; }
+
+    /// <summary>Range "From a to b"의 a·b. 없으면 null</summary>
+    public double? Min => RangeNumber(1);
+    public double? Max => RangeNumber(2);
+    bool IsInteger => Type is "Int32" or "Int64" or "Int16" or "Byte" or "SByte" or "UInt16" or "UInt32";
+    public double TickFrequency => IsInteger ? 1 : 0;
+    public bool Snap => IsInteger;
+
+    /// <summary>슬라이더 값. 정수 형식이면 반올림해 씁니다.</summary>
+    public double NumberValue
+    {
+        get => double.TryParse(Value, NumberStyles.Float, Inv, out var v) ? v : Min ?? 0;
+        set => Value = IsInteger ? Math.Round(value).ToString(Inv) : Math.Round(value, 2).ToString(Inv);
+    }
+
+    double? RangeNumber(int group) =>
+        Range is not null && Regex.Match(Range, @"From\s+(-?[\d.]+)\s+to\s+(-?[\d.]+)") is { Success: true } m
+        && double.TryParse(m.Groups[group].Value, NumberStyles.Float, Inv, out var v) ? v : null;
     public string Hint => string.Join(" · ", new[]
     {
         Type, Range, Flags ? "쉼표로 여러 개: " + string.Join(", ", Choices) : null, Default is null ? null : $"기본값 {Default}",

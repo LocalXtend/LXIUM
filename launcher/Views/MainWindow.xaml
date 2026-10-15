@@ -18,12 +18,18 @@
         <!-- 머리글 -->
         <DockPanel>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="BackButton" Style="{StaticResource Ghost}" Content="← 라이브러리" Click="Back_Click" Visibility="Collapsed"/>
-                <Button x:Name="RefreshButton" Style="{StaticResource Ghost}" Content="새로 고침" Click="Refresh_Click"/>
+                <Button x:Name="UpdateButton" Style="{StaticResource Primary}" Tag="{StaticResource IconDownload}"
+                        ContentTemplate="{StaticResource IconText}" Click="ApplyUpdate_Click" Visibility="Collapsed" Margin="0,0,10,0"/>
+                <Button x:Name="BackButton" Style="{StaticResource Ghost}" Tag="{StaticResource IconBack}" Content="라이브러리"
+                        ContentTemplate="{StaticResource IconText}" Click="Back_Click" Visibility="Collapsed" Margin="0,0,10,0"/>
+                <Button x:Name="RefreshButton" Style="{StaticResource IconButton}" Tag="{StaticResource IconRefresh}"
+                        ToolTip="새로 고침 (게임·애드온 모음 다시 확인)" Click="Refresh_Click" Margin="0,0,10,0"/>
+                <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Tag="{StaticResource IconSettings}"
+                        ToolTip="설정" Click="Settings_Click"/>
             </StackPanel>
             <StackPanel>
                 <TextBlock Text="LXIUM" FontSize="30" FontWeight="Bold" Foreground="{StaticResource Ink}"/>
-                <TextBlock x:Name="Subtitle" Text="게임 최적화 모드 런처" Style="{StaticResource Desc}"/>
+                <TextBlock x:Name="Subtitle" Text="게임 모드 런처" Style="{StaticResource Desc}"/>
             </StackPanel>
         </DockPanel>
 
@@ -119,8 +125,10 @@
                         <TextBlock DockPanel.Dock="Top" Text="게임" Style="{StaticResource Title}"/>
                         <TextBlock DockPanel.Dock="Top" Text="Steam 라이브러리에서 찾은 게임 폴더입니다." Style="{StaticResource Desc}" Margin="0,6,0,14"/>
                         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,16,0,0">
-                            <Button Style="{StaticResource Primary}" Content="▶  게임 실행" Click="Play_Click" IsEnabled="{Binding CanPlay}" Margin="0,0,8,0"/>
-                            <Button Style="{StaticResource Ghost}" Content="폴더 열기" Click="Folder_Click" IsEnabled="{Binding HasRoot}"/>
+                            <Button Style="{StaticResource Primary}" Tag="{StaticResource IconPlay}" Content="게임 실행" ContentTemplate="{StaticResource IconText}"
+                                    Click="Play_Click" IsEnabled="{Binding CanPlay}" Margin="0,0,8,0"/>
+                            <Button Style="{StaticResource Ghost}" Tag="{StaticResource IconFolder}" Content="폴더 열기" ContentTemplate="{StaticResource IconText}"
+                                    Click="Folder_Click" IsEnabled="{Binding HasRoot}"/>
                         </StackPanel>
                         <StackPanel>
                             <Border Style="{StaticResource Inner}" Margin="0,0,0,10">
@@ -148,11 +156,11 @@
                     </DockPanel>
                 </Border>
 
-                <!-- 최적화 모드 설치·제거 -->
+                <!-- 모드(애드온) 설치·제거·버전 -->
                 <Border Grid.Row="2" Style="{StaticResource Card}" Background="{StaticResource Purple}">
                     <StackPanel>
-                        <TextBlock Text="최적화 모드" Style="{StaticResource Title}"/>
-                        <TextBlock Text="설치하면 게임 폴더에 모드 파일을 복사하고, 제거하면 덮어쓴 파일까지 원래대로 되돌립니다."
+                        <TextBlock Text="모드" Style="{StaticResource Title}"/>
+                        <TextBlock Text="설치하면 게임 폴더에 모드 파일을 복사하고, 제거하면 덮어쓴 파일까지 원래대로 되돌립니다. 버전이 여러 개면 골라서 설치할 수 있습니다."
                                    Style="{StaticResource Desc}" Margin="0,6,0,16"/>
                         <ItemsControl ItemsSource="{Binding Addons}">
                             <ItemsControl.ItemTemplate>
@@ -175,6 +183,13 @@
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Detail}" Style="{StaticResource Desc}" FontSize="12" Margin="0,3,0,0"/>
                                                 <TextBlock Text="{Binding Description}" Style="{StaticResource Desc}" FontSize="13" Margin="0,4,0,0"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                                            Visibility="{Binding HasManyVersions, Converter={StaticResource Vis}}">
+                                                    <TextBlock Text="버전" Style="{StaticResource Desc}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                    <ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding Selected}" DisplayMemberPath="Label" MinWidth="180"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Compat}" FontSize="12" FontWeight="SemiBold" Foreground="#A1452A" TextWrapping="Wrap"
+                                                           Margin="0,6,0,0" Visibility="{Binding HasCompat, Converter={StaticResource Vis}}"/>
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
@@ -203,6 +218,93 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- 런처 설정 -->
+        <ScrollViewer x:Name="SettingsView" Grid.Row="1" Margin="0,22,0,0" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+            <Grid Margin="0,4,0,28">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="5*"/>
+                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="3*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- 업데이트 -->
+                <Border Style="{StaticResource Card}" Background="{StaticResource Blue}">
+                    <StackPanel>
+                        <TextBlock Text="업데이트" Style="{StaticResource Title}"/>
+                        <TextBlock x:Name="VersionText" Style="{StaticResource Desc}" Margin="0,6,0,16"/>
+                        <Border Style="{StaticResource Inner}" Margin="0,0,0,12">
+                            <DockPanel>
+                                <CheckBox x:Name="AutoUpdateSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                          Checked="AutoUpdate_Changed" Unchecked="AutoUpdate_Changed"/>
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Text="업데이트 자동 확인" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
+                                    <TextBlock Text="시작할 때 새 LXIUM과 애드온 모음의 새 버전을 확인합니다." Style="{StaticResource Desc}" FontSize="13" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                        <Button Style="{StaticResource Primary}" Tag="{StaticResource IconRefresh}" Content="지금 업데이트 확인"
+                                ContentTemplate="{StaticResource IconText}" Click="CheckNow_Click" HorizontalAlignment="Left"/>
+                        <TextBlock x:Name="UpdateStatus" Style="{StaticResource Desc}" FontSize="13" Margin="0,12,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 정보 -->
+                <Border Grid.Column="2" Style="{StaticResource Card}" Background="{StaticResource Pink}">
+                    <StackPanel>
+                        <TextBlock Text="정보" Style="{StaticResource Title}"/>
+                        <TextBlock Style="{StaticResource Desc}" Margin="0,6,0,16"
+                                   Text="BepInEx·MelonLoader 모드를 게임에 설치·제거하고, 모드 설정을 바꾸고, 애드온 모음에서 받아 업데이트합니다."/>
+                        <Border Style="{StaticResource Inner}" Margin="0,0,0,10">
+                            <TextBlock FontSize="13" Foreground="{StaticResource Ink}" TextWrapping="Wrap">
+                                <Run Text="2026 ⓒ iyu.e — "/><Hyperlink NavigateUri="https://iyu-e.tistory.com/" RequestNavigate="Link_Navigate"
+                                    Foreground="{StaticResource Teal}">https://iyu-e.tistory.com/</Hyperlink>
+                            </TextBlock>
+                        </Border>
+                        <Border Style="{StaticResource Inner}">
+                            <TextBlock Style="{StaticResource Desc}" FontSize="12">
+                                <Run Text="아이콘: "/><Hyperlink NavigateUri="https://lucide.dev/" RequestNavigate="Link_Navigate"
+                                    Foreground="{StaticResource Teal}">Lucide</Hyperlink><Run Text=" (ISC 라이선스, Lucide-LICENSE.txt)"/>
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- 애드온 모음 -->
+                <Border Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource Card}" Background="{StaticResource Purple}">
+                    <StackPanel>
+                        <TextBlock Text="애드온 모음" Style="{StaticResource Title}"/>
+                        <TextBlock Style="{StaticResource Desc}" Margin="0,6,0,16"
+                                   Text="애드온 모음(catalog.json) 주소를 넣으면 그 모음의 애드온을 받고 업데이트할 수 있습니다. 애드온은 게임 안에서 실행되므로 믿을 수 있는 모음만 추가하세요."/>
+                        <ItemsControl x:Name="CatalogList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Inner}" Margin="0,0,0,10" Padding="16,8">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="34" Height="34"
+                                                    Tag="{StaticResource IconTrash}" ToolTip="모음 빼기" Click="RemoveCatalog_Click"/>
+                                            <TextBlock Text="{Binding}" FontSize="13" Foreground="{StaticResource Ink}" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <DockPanel Margin="0,4,0,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Primary}" Tag="{StaticResource IconPlus}" Content="추가"
+                                    ContentTemplate="{StaticResource IconText}" Click="AddCatalog_Click" Margin="10,0,0,0"/>
+                            <TextBox x:Name="CatalogInput" Padding="10,8" FontSize="13" VerticalContentAlignment="Center"/>
+                        </DockPanel>
+                        <TextBlock x:Name="CatalogStatus" Style="{StaticResource Desc}" FontSize="12" Margin="0,12,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>
