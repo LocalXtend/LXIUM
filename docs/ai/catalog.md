@@ -23,7 +23,7 @@ UTF-8 JSON. 주석 금지.
   "name": "LXIUM 공식",
   "addons": [
     {
-      "url": "https://github.com/LocalXtend/LXIUM/releases/download/LXIUM_mahosaba-v0.5.1/LXIUM_mahosaba-0.5.1.zip",
+      "url": "https://github.com/LocalXtend/LXIUM_mahosaba/releases/download/LXIUM_mahosaba-v0.5.1/LXIUM_mahosaba-0.5.1.zip",
       "sha256": "f40cb630...e5c1",
       "manifest": { "...": "zip 안 lxium.json 내용 그대로" }
     }
@@ -51,9 +51,9 @@ UTF-8 JSON. 주석 금지.
 
 ## 4. 공식 모음 만들기·올리기
 
-1. 각 모드 프로젝트 빌드 → `optimizeMods/<id>/dist/<id>-<ver>.zip`
-2. 저장소 루트에서 `./build.ps1` → `dist/catalog.json` (항목 url = `https://github.com/LocalXtend/LXIUM/releases/download/<id>-v<ver>/<id>-<ver>.zip`, sha256·manifest는 zip에서 계산)
-3. GitHub 릴리스 `<id>-v<ver>`를 만들고 같은 zip을 올림 (zip을 다시 빌드하면 sha256이 바뀌므로 `build.ps1`이 쓴 zip을 그대로 올림)
+1. 각 모드 저장소(`LocalXtend/<id>`)를 LXIUM `optimizeMods/<id>/`에 clone해 빌드 → `optimizeMods/<id>/dist/<id>-<ver>.zip`
+2. 저장소 루트에서 `./build.ps1` → `dist/catalog.json` (항목 url = `https://github.com/LocalXtend/<id>/releases/download/<id>-v<ver>/<id>-<ver>.zip`, sha256·manifest는 zip에서 계산)
+3. 모드 저장소에 GitHub 릴리스 `<id>-v<ver>`를 만들고 같은 zip을 올림 (zip을 다시 빌드하면 sha256이 바뀌므로 `build.ps1`이 쓴 zip을 그대로 올림)
 4. `dist/catalog.json`을 저장소 루트 `catalog.json`으로 복사해 dev에 커밋
 5. 이전 버전 항목을 남기려면 루트 `catalog.json`의 기존 항목을 지우지 않고 새 항목만 더함 (`build.ps1`은 지금 버전만 씀)
 

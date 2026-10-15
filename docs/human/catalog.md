@@ -41,6 +41,6 @@
 
 ## 공식 모음 올리는 법 (개발자)
 
-1. 모드 프로젝트를 빌드하고 저장소 루트에서 `./build.ps1`을 실행합니다. `dist/catalog.json`이 만들어집니다.
-2. GitHub에 `<id>-v<버전>` 릴리스를 만들고, `build.ps1`이 쓴 그 zip을 올립니다.
+1. 모드 저장소(예: LXIUM_mahosaba)를 LXIUM의 `optimizeMods/` 안에 받아 빌드하고, LXIUM 저장소 루트에서 `./build.ps1`을 실행합니다. `dist/catalog.json`이 만들어집니다.
+2. **모드 저장소**에 `<id>-v<버전>` 릴리스를 만들고, `build.ps1`이 쓴 그 zip을 올립니다.
 3. `dist/catalog.json`을 저장소 루트 `catalog.json`으로 옮겨 커밋합니다. 옛 버전 항목은 지우지 않고 새 항목을 더합니다.

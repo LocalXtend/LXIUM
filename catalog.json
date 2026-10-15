@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "name": "LXIUM 공식",
+  "addons": [
+    {
+      "url": "https://github.com/LocalXtend/LXIUM_mahosaba/releases/download/LXIUM_mahosaba-v0.5.1/LXIUM_mahosaba-0.5.1.zip",
+      "sha256": "f40cb63001f36115a60e89a907d1680b16c50570c23d7fd23bb10ebbc461e5c1",
+      "manifest": {
+        "schema": 1,
+        "id": "LXIUM_mahosaba",
+        "name": "LXIUM mahosaba",
+        "version": "0.5.1",
+        "description": "마법소녀의 마녀재판 렌더링 최적화·프레임 제한 해제 (BepInEx 6 IL2CPP)",
+        "game": {
+          "id": "mahosaba",
+          "name": "魔法少女ノ魔女裁判",
+          "exe": "manosaba.exe",
+          "steamAppId": 3101040
+        },
+        "variants": {
+          "bepinex6": {
+            "minLoaderVersion": "6.0.0-be.785"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -26,7 +26,8 @@
 |---|---|
 | `launcher/` | 런처 (WPF, MVC: `Models/` `Views/` `Controllers/`) |
 | `launcher/tests/` | 런처 모델 자체 검사 |
-| `optimizeMods/LXIUM_<게임>/` | 게임별 모드(애드온) 프로젝트. 새 게임은 `LXIUM_sample/`을 복사 |
+| `optimizeMods/LXIUM_<게임>/` | 게임별 모드 저장소의 clone 자리 (git 제외). 모드는 [LXIUM_mahosaba](https://github.com/LocalXtend/LXIUM_mahosaba)처럼 저장소를 따로 두고, 새 게임은 [LXIUM_sample](https://github.com/LocalXtend/LXIUM_sample)을 복사 |
+| `catalog.json` | 공식 애드온 모음 (런처가 받아 모드 받기·업데이트에 씀) |
 | `docs/human/`, `docs/ai/` | 사람용·AI용 문서. 같은 주제는 같은 파일 이름 |
 | `build.ps1` | 포터블 빌드 + 공식 애드온 모음 생성 |
 | `AGENTS.md` | AI 에이전트 작업 규칙 (버전·커밋·릴리스 형식) |
@@ -47,16 +48,7 @@ dotnet run --project launcher/tests -- --net  # + BepInEx·MelonLoader 실제 �
 | 런처 사용·구조 | [launcher](docs/human/launcher.md) | [launcher](docs/ai/launcher.md) |
 | 애드온(모드 zip) 규격 | [addon](docs/human/addon.md) | [addon](docs/ai/addon.md) |
 | 애드온 모음(catalog.json) | [catalog](docs/human/catalog.md) | [catalog](docs/ai/catalog.md) |
-| 디자인 규칙과 이유 | [design](docs/human/design.md) | [design](docs/ai/design.md) |
-
-### 작업 순서
-
-1. `dev` 브랜치에서 작업합니다.
-2. 바꾼 기능의 문서를 사람용·AI용 둘 다 같은 커밋에서 고칩니다.
-3. `ver.txt`를 올립니다. (x = 방향 전환, y = 새 기능, z = 오류 수정·동작 변경)
-4. `dotnet run --project launcher/tests`가 통과하는지 확인하고 커밋합니다.
 
 ### 릴리스
 
-- 런처: `./build.ps1` → GitHub 릴리스 `LXIUM-v<버전>`에 `LXIUM-<버전>-portable.zip`을 올립니다. 런처의 자동 업데이트가 이 릴리스를 찾습니다. 본문 형식은 `AGENTS.md`의 "git 릴리즈에 관해서"를 따릅니다.
-- 모드: GitHub 릴리스 `<id>-v<버전>`에 `build.ps1`이 모은 zip을 올리고, `dist/catalog.json`을 저장소 루트 `catalog.json`에 반영합니다. ([catalog](docs/human/catalog.md))
+- 모드: 모드 저장소(`LocalXtend/<id>`)의 GitHub 릴리스 `<id>-v<버전>`에 `build.ps1`이 모은 zip을 올리고, `dist/catalog.json`을 이 저장소 루트 `catalog.json`에 반영합니다. ([catalog](docs/human/catalog.md))

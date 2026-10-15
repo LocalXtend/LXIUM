@@ -113,7 +113,7 @@ UTF-8 JSON. 주석 금지.
 
 제거: 기록된 파일 삭제 → 백업 복원 → 비게 된 폴더 삭제. 로더는 남김 (다른 모드가 쓸 수 있음). 기록이 없으면 게임 폴더에 있는 이 애드온 자신의 파일만 지움
 
-## 7. 소스 프로젝트 규칙 (`optimizeMods/LXIUM_<게임>/`)
+## 7. 소스 프로젝트 규칙 (모드 저장소 `LocalXtend/LXIUM_<게임>`, 로컬 clone 위치 LXIUM `optimizeMods/LXIUM_<게임>/`)
 
 - 저장소 루트에 `lxium.json` 원본을 둠
 - 빌드 결과는 `dist/<id>-<version>.zip`. `dist/`는 git 제외
@@ -122,7 +122,8 @@ UTF-8 JSON. 주석 금지.
   - IL2CPP: 게임 루트에 `GameAssembly.dll`
   - Mono: `<게임>_Data/Managed/Assembly-CSharp.dll`
 - 여러 로더를 지원하면 최적화 로직은 로더와 무관한 코드로 두고, 로더별 진입점(BepInEx 플러그인 클래스, `MelonMod` 등)만 따로 둠
-- 배포: GitHub 릴리스 `<id>-v<version>`에 zip을 올리고 공식 애드온 모음을 갱신 (`catalog.md` 4장)
+- 게임마다 저장소를 따로 둠. 템플릿 = `LocalXtend/LXIUM_sample`. 게임 분석·설계 문서도 그 저장소의 `docs/`에 둠
+- 배포: 모드 저장소의 GitHub 릴리스 `<id>-v<version>`에 zip을 올리고 LXIUM 저장소의 공식 애드온 모음을 갱신 (`catalog.md` 4장)
 
 ## 8. 패키징 후 검증
 
