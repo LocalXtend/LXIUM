@@ -13,10 +13,12 @@ namespace LXIUM_sephiria
         public float RenderScale;   // URP 렌더 배율. 화면 공간 오버레이 UI는 영향 없음
         public string Upscale = ""; // URP 업스케일 필터: Auto, Linear, Point, FSR, STP, 또는 Texel (LXIUM 픽셀 아트 확대)
         public float Sharpness = -1; // FSR 뒤 RCAS 적응형 선명화 0~1. 0 = 끔, 음수 = 게임 값. Texel은 늘 0
+        public float TexelMultiple;  // 0보다 크면 RenderScale 대신 "아트 텍셀 줄 수 × k"로 자동 (Upscale 비면 Texel)
 
         public override string ToString() =>
-            $"{Name}(light={(LightScale > 0 ? LightScale.ToString("0.###") : "game")} scale={(RenderScale > 0 ? RenderScale.ToString("0.###") : "game")} " +
-            $"upscale={(Upscale.Length > 0 ? Upscale : "game")} sharp={(Sharpness >= 0 ? Sharpness.ToString("0.##") : "game")})";
+            $"{Name}(light={(LightScale > 0 ? LightScale.ToString("0.###") : "game")} " +
+            $"scale={(TexelMultiple > 0 ? "texel x" + TexelMultiple.ToString("0.##") : RenderScale > 0 ? RenderScale.ToString("0.###") : "game")} " +
+            $"upscale={(Upscale.Length > 0 ? Upscale : TexelMultiple > 0 ? "Texel" : "game")} sharp={(Sharpness >= 0 ? Sharpness.ToString("0.##") : "game")})";
     }
 
     /// <summary>
@@ -34,20 +36,18 @@ namespace LXIUM_sephiria
         public string AutoLabScene = "MainWorld";
         public bool QuitAfterLab;             // 자동 비교가 끝나면 게임 종료
         public float StatsIntervalSec = 10;   // 프레임 통계를 로그에 남기는 간격. 0 = 끔
-        public RenderPreset Render = new RenderPreset();
+        public float ArtPPU = 16;             // 텍셀 격자 자동 배율의 아트 PPU
+        // 기본: 월드 절반 해상도 + LXIUM 픽셀 아트 확대 (3차 실측 +25%, 화면 거의 같음). 원래대로는 Name만 남기고 나머지 0·빈 값
+        public RenderPreset Render = new RenderPreset { Name = "texel0.5", RenderScale = 0.5f, Upscale = "Texel" };
         public float LabWarmupSec = 2;
         public float LabMeasureSec = 8;
         public RenderPreset[] LabPresets =
         {
             new RenderPreset { Name = "game" },
-            new RenderPreset { Name = "light0.5", LightScale = 0.5f },
-            new RenderPreset { Name = "point0.5", RenderScale = 0.5f, Upscale = "Point" },
-            new RenderPreset { Name = "fsr0.5", RenderScale = 0.5f, Upscale = "FSR" },
             new RenderPreset { Name = "texel0.5", RenderScale = 0.5f, Upscale = "Texel" },
-            new RenderPreset { Name = "texel0.36", RenderScale = 0.36f, Upscale = "Texel" },
-            new RenderPreset { Name = "point0.36", RenderScale = 0.36f, Upscale = "Point" },
-            new RenderPreset { Name = "texel0.54", RenderScale = 0.54f, Upscale = "Texel" },
-            new RenderPreset { Name = "texel0.5light0.5", LightScale = 0.5f, RenderScale = 0.5f, Upscale = "Texel" },
+            new RenderPreset { Name = "texelx2", TexelMultiple = 2 },
+            new RenderPreset { Name = "texelx3", TexelMultiple = 3 },
+            new RenderPreset { Name = "texelx2light0.5", TexelMultiple = 2, LightScale = 0.5f },
             new RenderPreset { Name = "game2" },
         };
 

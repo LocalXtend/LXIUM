@@ -31,6 +31,7 @@ namespace LXIUM_sephiria
             Debug.Log($"[LXIUM] {typeof(Core).Assembly.GetName().Version.ToString(3)} loaded by {loader}; {Probe.Environment()}");
             Debug.Log("[LXIUM] loop phases: " + string.Join(",", Frame.PhaseNames));
             Shaders.Load();
+            Render.ArtPpu = settings.ArtPPU;
             Debug.Log("[LXIUM] render " + Render.Apply(settings.Render));
             host = new GameObject("LXIUM_sephiria") { hideFlags = HideFlags.HideAndDontSave };
             Object.DontDestroyOnLoad(host);
@@ -121,6 +122,7 @@ namespace LXIUM_sephiria
                 if (!lab.Running) { lab.Toggle(); autoLabRunning = true; }
             }
             lab.Tick();
+            Render.Tick();
             if (autoLabRunning && !lab.Running)
             {
                 autoLabRunning = false;

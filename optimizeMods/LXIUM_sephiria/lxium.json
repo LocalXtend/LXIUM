@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "LXIUM_sephiria",
   "name": "LXIUM Sephiria",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "세피리아 렌더링 계측·최적화 (MelonLoader, 또는 로더 없이 게임 내장 AddOns 로더)",
   "game": {
     "id": "sephiria",

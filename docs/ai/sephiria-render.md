@@ -36,7 +36,7 @@
 
 | ID | 이름 | 방법 | 힌트 | 상태 |
 |---|---|---|---|---|
-| B1 | 텍셀 격자 렌더 (TGR) | 월드를 "아트 텍셀 격자 × k" 해상도로 그림. 직교 높이 × PPU = 화면 세로 텍셀 수 (예: 5.63 × 2 × 16 = 180) → k = 2~3이면 360~540줄. 조명·블룸·안개는 원래 저주파라 이 해상도로 충분. 화면으로는 C1(선명 쌍선형)로 올림. 오버레이 UI는 원래 해상도 | Spatial Resolution. 픽셀 아트는 텍셀보다 촘촘히 그려도 정보가 늘지 않으므로 손실이 거의 없는 판 [추론] | 후보. PPU·직교 크기 probe 필요. 첫 단계는 A2를 정수배에 맞추기 |
+| B1 | 텍셀 격자 렌더 (TGR) | 월드를 "아트 텍셀 격자 × k" 해상도로 그림. 직교 높이 × PPU = 화면 세로 텍셀 수 (예: 5.63 × 2 × 16 = 180) → k = 2~3이면 360~540줄. 조명·블룸·안개는 원래 저주파라 이 해상도로 충분. 화면으로는 C1(선명 쌍선형)로 올림. 오버레이 UI는 원래 해상도 | Spatial Resolution. 픽셀 아트는 텍셀보다 촘촘히 그려도 정보가 늘지 않으므로 손실이 거의 없는 판 [추론] | 1단계 구현 0.4.0 `TexelMultiple`: `renderScale = round(k × 2 × 직교 크기 × ArtPPU / camera.pixelHeight, 0.01)`, 0.1~1. `Camera.main` 직교 크기·높이가 바뀌면 매 프레임 따라감(0.005 넘게 바뀔 때만 설정). 4차: ×2 → 0.36 149.5 fps, ×3 → 0.54 138.3 fps. 다음: 카메라를 렌더 픽셀 격자에 맞추기(떨림) |
 | B2 | 직교 이동 재투영 (OSR) | 실제(REAL) 프레임은 여백을 조금 더 그려 RT에 남기고, 생성(GEN) 프레임은 월드 카메라를 끄고 지난 RT를 카메라 이동량만큼 밀어 그림. 직교 카메라의 평행 이동은 정지한 물체에 대해 정확함. UI는 매 프레임 실제로 그림. 움직이는 적·탄·조명 애니메이션은 반 프레임률. GPU가 병목일 때만 켜는 적응형 | Temporal Frame Reprojection | 후보. 위험: 패럴랙스 층(비율이 다름)·화면 흔들림·회전 효과. 밀기는 `Hidden/Universal/CoreBlit`의 scaleBias로 가능해 셰이더가 없어도 시작 가능 [추론] |
 | B3 | 정적 층 캐시 (지연 2D) | 방이 바뀔 때 바닥 타일맵·배경의 알베도를 텍셀 해상도 RT에 한 번 그리고, 매 프레임은 "알베도 × 조명 텍스처" 전체 화면 1패스로 대체. 타일 수천 개의 그리기·겹침이 1장으로 | Opaque Ice (반투명 층 더미 → 불투명 바닥 1장) | 후보. 타일맵 수·그리기 비중 probe 필요. 카메라 이동은 B2와 같은 밀기 |
 | B4 | 화면 층 합치기 | 안개(`FogControl`), 분위기 스프라이트, 비·눈 이미지, 배경 안개를 한 패스로 (저해상도) | Render Fast | 후보. C3 필요 |
@@ -104,6 +104,7 @@
 | 1차 | 0.3.0 | 원격 화면으로 보는 중이라 무효. texel+RCAS 화면이 밝게 뜨는 문제 발견 |
 | 2차 | 0.3.1 | 기본 프리셋 9개 (settings.json의 목록이 안 읽혀서 — JsonUtility 문제, 0.3.2에서 고침). texel 0.5 145 fps. RCAS 없는 texel이 어두워짐 발견 |
 | 3차 | 0.3.2 | 아래 표. 밝기 모두 같음 |
+| 4차 | 0.4.0 | 기본 `Render` = texel0.5가 시작 때 적용됨(`render texel0.5 → scale 0.5`). 자동 배율 ×2 → 0.36, ×3 → 0.54로 계산됨. game 122.7 / game2 117.3, texel0.5 146.1 (1% low 101), texelx2 149.5 (101), texelx3 138.3 (79), texelx2+light0.5 148.4 (102). 자동 종료 때 게임 `UIManager.DisconnectPlayerObject` NullReferenceException 32회 (게임 코드, 종료 순서) |
 
 3차 (전투 방 `Moleland_HardBattle_2_Jail`, 1437x1000 창, Iris Xe, 2초 예열 + 8초 측정):
 
@@ -130,19 +131,22 @@
 | `ProbeKey` / `LabKey` | `F9` / `F10` | InputSystem `Key` 이름. 빈 값 = 끔 |
 | `AutoProbe` | true | 장면 로드 3초 뒤 덤프 |
 | `StatsIntervalSec` | 10 | 프레임 통계 간격. 0 = 끔 |
-| `Render` | 모두 게임 값 | 시작할 때 적용하는 렌더 설정. `LightScale`, `RenderScale`(0 이하 = 게임 값), `Upscale`(빈 값 = 게임 값, `Auto`·`Linear`·`Point`·`FSR`·`STP`·`Texel`), `Sharpness`(RCAS 0~1, 음수 = 게임 값) |
+| `Render` | `texel0.5` (`RenderScale` 0.5, `Upscale` Texel) — 0.4.0부터 | 시작할 때 적용하는 렌더 설정. `LightScale`, `RenderScale`(0 이하 = 게임 값), `TexelMultiple`(0보다 크면 `RenderScale` 대신 아트 텍셀 × k 자동, `Upscale` 비면 Texel), `Upscale`(빈 값 = 게임 값, `Auto`·`Linear`·`Point`·`FSR`·`STP`·`Texel`), `Sharpness`(FSR의 RCAS 0~1, 음수 = 게임 값, Texel은 늘 0). 원래 게임으로는 `{"Name": "game"}` |
+| `ArtPPU` | 16 | `TexelMultiple`이 쓰는 아트 PPU |
 | `AutoStartSec` | 0 (끔) | 타이틀 로드 n초 뒤 `UI_TitleLobby.NetworkHost()`("게임 시작" 버튼과 같음, 선택된 세이브로 호스트 시작). 장면이 안 바뀌면 10초마다 최대 3번 |
 | `AutoLabSec` / `AutoLabScene` | 0 (끔) / `MainWorld` | 그 장면 로드 n초 뒤 비교 실행 (실행마다 한 번) |
 | `QuitAfterLab` | false | 자동 비교가 끝나면 `Application.Quit()` |
 | `LabWarmupSec` / `LabMeasureSec` | 2 / 8 | 비교 예열·측정 시간 |
-| `LabPresets` | game, light0.5, point0.5, fsr0.5, texel0.5, texel0.36, point0.36, texel0.54, texel0.5light0.5, game2 | 비교할 설정 목록 (약 100초). 파일에 목록이 있으면 그 목록만 씀 |
+| `LabPresets` | game, texel0.5, texelx2, texelx3, texelx2light0.5, game2 | 비교할 설정 목록 (약 60초). 파일에 목록이 있으면 그 목록만 씀 |
+
+- 예전 버전이 쓴 settings.json에 `Render`가 있으면 그 값을 계속 씀 (0.3.2가 쓴 파일은 `game`). 새 기본값을 받으려면 `Render` 항목을 지움
 
 - 0.3.2부터 Newtonsoft.Json(게임에 든 13.0.0.0)으로 읽고 씀. 0.3.1까지는 Unity `JsonUtility`가 실행 중 불러온 어셈블리의 중첩 클래스(`Render`, `LabPresets`)를 건너뛰어 **사용자의 `Render` 설정이 적용되지 않았음** [관찰: 쓰인 settings.json에 두 항목이 없었음]
 
 ## 5. 다음 단계
 
-1. 기본 렌더 설정 결정: `Texel` 0.5(또는 아트 텍셀 ×2~3 배율)를 기본으로 할지
-2. B1(텍셀 격자 렌더): 배율을 `k × 직교 높이 × PPU / 화면 높이`로 자동 계산 (1000줄: k=2 → 0.36, k=3 → 0.54)
+1. 기본을 `TexelMultiple`(×2~3)로 바꿀지: 0.5 고정은 1080p에서 정확히 ×3(540줄), 1000줄에서 ×2.78. 화면 크기와 상관없이 같은 품질·비용을 원하면 자동이 맞음
+2. B1 2단계: 카메라 위치를 렌더 픽셀 격자에 맞춰(텍셀 경계 떨림 제거) 진짜 "텍셀 격자" 렌더로
 3. C1을 `FinalPost` 자리로 옮겨 Point와 같은 패스 수로 (Texel이 Point보다 느린 몫 제거)
 4. 이 PC는 CPU가 먼저 막힘 → PostLateUpdate(렌더 기록·UI) 내역부터 재고 B6·B7·A3
 5. 마을·보스·날씨 장면 측정 (이동이 필요해 사람이 하거나 화면 조작 허용 필요)

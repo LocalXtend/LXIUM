@@ -43,16 +43,22 @@ namespace LXIUM_sephiria
             return true;
         }
 
+        /// <summary>아트의 1유닛당 픽셀 수. 세피리아 스프라이트는 모두 16 [관찰: probe]</summary>
+        public static float ArtPpu = 16;
+        static RenderPreset current = new RenderPreset();
+
         public static string Apply(RenderPreset p)
         {
             if (!Find()) return "URP 에셋 없음, 적용 안 함";
-            asset.renderScale = p.RenderScale > 0 ? p.RenderScale : gameScale;
+            current = p;
+            asset.renderScale = p.TexelMultiple > 0 ? TexelScale(p.TexelMultiple, gameScale) : p.RenderScale > 0 ? p.RenderScale : gameScale;
             var filter = gameFilter;
-            bool texel = string.Equals(p.Upscale, "Texel", StringComparison.OrdinalIgnoreCase) && Shaders.TexelUpscale;
+            string upscale = p.Upscale.Length > 0 ? p.Upscale : p.TexelMultiple > 0 ? "Texel" : "";
+            bool texel = string.Equals(upscale, "Texel", StringComparison.OrdinalIgnoreCase) && Shaders.TexelUpscale;
             if (texel) filter = UpscalingFilterSelection.FSR;
-            else if (p.Upscale.Length > 0 && !Enum.TryParse(p.Upscale, true, out filter))
+            else if (upscale.Length > 0 && !Enum.TryParse(upscale, true, out filter))
             {
-                Debug.LogWarning($"[LXIUM] 업스케일 필터 '{p.Upscale}' 모름 (Auto, Linear, Point, FSR, STP, Texel) 또는 셰이더 없음. 게임 값 사용");
+                Debug.LogWarning($"[LXIUM] 업스케일 필터 '{upscale}' 모름 (Auto, Linear, Point, FSR, STP, Texel) 또는 셰이더 없음. 게임 값 사용");
                 filter = gameFilter;
             }
             asset.upscalingFilter = filter;
@@ -63,7 +69,28 @@ namespace LXIUM_sephiria
             asset.fsrSharpness = sharp >= 0 ? sharp : gameSharpness;
             for (int i = 0; i < datas.Length; i++)
                 if (datas[i] != null && LightScale != null) LightScale.SetValue(datas[i], p.LightScale > 0 ? p.LightScale : gameLight[i]);
-            return p.ToString();
+            return p + $" → scale {asset.renderScale:0.##}";
+        }
+
+        /// <summary>
+        /// 텍셀 격자 자동 배율: 월드 세로 해상도 = k × 화면에 보이는 아트 텍셀 줄 수 (2 × 직교 크기 × PPU).
+        /// 카메라 줌·창 크기가 바뀌면 따라가도록 매 프레임 부른다. 0.01 단위로 반올림해 바뀔 때만 설정 (URP가 대상 텍스처를 다시 만듦).
+        /// </summary>
+        public static void Tick()
+        {
+            if (current.TexelMultiple <= 0 || asset == null) return;
+            float s = TexelScale(current.TexelMultiple, asset.renderScale);
+            if (Mathf.Abs(s - asset.renderScale) < 0.005f) return;
+            asset.renderScale = s;
+            Debug.Log($"[LXIUM] texel x{current.TexelMultiple:0.##} → scale {s:0.##} (ortho {Camera.main.orthographicSize:0.###}, {Camera.main.pixelHeight}px)");
+        }
+
+        /// <summary>카메라가 없거나 원근이면 fallback 그대로. 1 이상이면 원래 해상도</summary>
+        static float TexelScale(float k, float fallback)
+        {
+            var cam = Camera.main;
+            if (cam == null || !cam.orthographic || cam.pixelHeight <= 0) return fallback;
+            return Mathf.Clamp(Mathf.Round(k * 2 * cam.orthographicSize * ArtPpu / cam.pixelHeight * 100) / 100, 0.1f, 1f);
         }
 
         const string EasuName = "Hidden/Universal Render Pipeline/Edge Adaptive Spatial Upsampling";
