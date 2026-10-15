@@ -81,6 +81,8 @@
 
 ## 3. 검증 절차 (0.1.0부터 계측)
 
+0.5.0부터 `Frame`이 모든 플레이어 루프 하위 시스템 앞에 표식을 넣어 하위 시스템별 시간도 모은다(`Frame.DetailReport`). 표식은 약 120개, 프레임당 비용은 수십 µs [추론]. F9 덤프는 같은 이름의 스크린샷도 남긴다
+
 게임 폴더 `AddOns/LXIUM_sephiria/` 아래에 남음.
 
 | 기능 | 키·설정 | 결과 |
@@ -124,6 +126,50 @@
 - 배율을 낮추면 Update·PostLateUpdate도 줄어듦 → 메인 스레드가 렌더 스레드·GPU를 기다리는 몫이 그 안에 있음 [추론]
 - 0.36 이하에서는 메인 스레드 약 6 ms가 남아 이 PC는 CPU가 먼저 막힘. UHD 620에서는 GPU 몫이 3배 안팎이라 배율 효과가 더 클 것 [추론]
 
+### CPU 내역 (5차, 0.5.0 `Profile`, 전투 방, texel0.5)
+
+1단계(패치 없음, 8초, p50 5.69 ms) 하위 시스템 프레임당 평균 [관찰]:
+
+| ms | 하위 시스템 | 내용 |
+|---|---|---|
+| 2.934 | `PostLateUpdate.FinishFrameRendering` | URP 렌더 (메인 스레드) |
+| 1.483 | `Update.ScriptRunBehaviourUpdate` | MonoBehaviour.Update |
+| 0.434 | `PreLateUpdate.ScriptRunBehaviourLateUpdate` | MonoBehaviour.LateUpdate |
+| 0.221 | `PostLateUpdate.PlayerUpdateCanvases` | UI 캔버스 |
+| 0.218 | `TimeUpdate.WaitForLastPresentationAndUpdateTime` | 표시 대기 (GPU) |
+| 0.181 / 0.069 | `PreLateUpdate.DirectorUpdateAnimationBegin/End` | Animator |
+| 0.144 | `EarlyUpdate.UpdateCanvasRectTransform` | UI RectTransform |
+| 0.089 / 0.077 | `PostLateUpdate.UpdateAllRenderers` / `SortingGroupsUpdate` | 렌더러 경계·정렬 그룹 |
+| 0.053 / 0.017 | `PreLateUpdate.NetworkLoop` / `EarlyUpdate.NetworkLoop` | Mirror |
+
+2단계(Update·LateUpdate 860개 + 엔진 메서드 패치, 감싸는 비용 포함) 큰 것 [관찰]:
+
+| ms/frame | 호출/frame | 이름 |
+|---|---|---|
+| 2.503 | 1 | `UniversalRenderPipeline.Render` (포함) |
+| 2.391 | 1 | `UniversalRenderPipeline.RenderSingleCamera` (포함) |
+| 0.271 / 0.264 | 1 | `RenderGraph.EndRecordingAndExecute` / `Renderer2D.OnRecordRenderGraph` |
+| 0.199 | 136 | `Animator2D_SpriteRenderer.Update` |
+| 0.166 / 0.063 | 104 | Mirror `NetworkTransformReliable.LateUpdate` / `Update` |
+| 0.142 | 1 | `EventSystem.Update` |
+| 0.116 | 81+81 | `BreakableProp.Update` (두 형식) |
+| 0.091 | 8 | `TopdownRigidbody.Update` |
+| 0.066 / 0.041 | 53 / 32 | `FireSpark.Update` / `Firefly.Update` |
+| 0.064 | 69 | `Shadow.LateUpdate` |
+| 0.026 / 0.024 | 1 | `LayerUtility.CalculateBatches` / `VolumeManager.Update` |
+
+- `RenderSingleCamera` 2.39 ms 중 RenderGraph 기록·실행은 약 0.53 ms. 나머지 약 1.9 ms는 아직 안 쪼갬 (컬링·그리기 제출·조명 준비 후보) [추론] → 다음 측정에 `ScriptableRenderContext.Cull/Submit` 등 추가
+- 스크립트는 형식 하나가 큰 게 아니라 작은 것이 많음. 가장 큰 `Animator2D_SpriteRenderer`도 0.2 ms
+- 패치 전후 스크린샷이 같아 측정 패치가 그림을 바꾸지 않음 [관찰]
+
+### 화면이 안 보인다는 보고 (2026-10-15, 재현 안 됨)
+
+사용자: "라이트가 줄어드니까 메인화면이 아무것도 안 보이고 맵도 안 보임" (자동 측정을 원격 화면으로 보던 중). 확인한 것 [관찰]:
+- 타이틀: 같은 시각에 game·texel0.5를 각각 4장 → 평균 밝기 186.0 / 184.3, 그림 같음. 장면 로드 3초 뒤는 타이틀 자체의 조명이 켜지는 중이라 어두움 (두 경우 모두)
+- 전투 방: game·texel0.5·패치 전후 모두 같음. 4×4 구역 밝기도 같음
+- 타이틀 배경은 세이브(승리 여부)로 정해짐, 무작위 아님
+- 미확인: 월드 맵 화면(열지 못함), 밤·어두운 층, 다른 장면. 그동안 이 PC의 settings.json은 `Render: game`
+
 ## 4. 설정 (`settings.json`, 실행 중 생성. 내장 로더: `AddOns/LXIUM_sephiria/`, MelonLoader: `UserData/LXIUM_sephiria/`)
 
 | 키 | 기본 | 뜻 |
@@ -135,7 +181,10 @@
 | `ArtPPU` | 16 | `TexelMultiple`이 쓰는 아트 PPU |
 | `AutoStartSec` | 0 (끔) | 타이틀 로드 n초 뒤 `UI_TitleLobby.NetworkHost()`("게임 시작" 버튼과 같음, 선택된 세이브로 호스트 시작). 장면이 안 바뀌면 10초마다 최대 3번 |
 | `AutoLabSec` / `AutoLabScene` | 0 (끔) / `MainWorld` | 그 장면 로드 n초 뒤 비교 실행 (실행마다 한 번) |
-| `QuitAfterLab` | false | 자동 비교가 끝나면 `Application.Quit()` |
+| `QuitAfterLab` | false | 자동 비교(와 `AutoProfile`)가 끝나면 `Application.Quit()` |
+| `ProfileKey` / `ProfileSec` | `F11` / 8 | CPU 내역 측정 (MelonLoader 실행 때만). 단계마다 n초. 결과 `logs/profile-시각.txt` + 단계별 스크린샷 |
+| `AutoProfile` | false | 자동 비교 뒤 이어서 CPU 내역 측정 |
+| `ProfileMethods` | URP Render·RenderSingleCamera, Renderer2D.OnRecordRenderGraph, LayerUtility.CalculateBatches, RenderGraph 4개, VolumeManager.Update, CanvasUpdateRegistry.PerformUpdate, TMP_UpdateManager.DoRebuilds | 2단계에서 감쌀 엔진 메서드 `형식:메서드` (포함 시간) |
 | `LabWarmupSec` / `LabMeasureSec` | 2 / 8 | 비교 예열·측정 시간 |
 | `LabPresets` | game, texel0.5, texelx2, texelx3, texelx2light0.5, game2 | 비교할 설정 목록 (약 60초). 파일에 목록이 있으면 그 목록만 씀 |
 

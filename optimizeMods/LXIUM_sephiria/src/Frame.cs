@@ -24,7 +24,13 @@ namespace LXIUM_sephiria
         public static readonly long[] GcBytes = new long[Capacity];
         public static long Count;   // 기록한 프레임 수. 링 칸 = Count % Capacity
 
-        static long[] marks = Array.Empty<long>();   // 이번 프레임 단계 시작 틱, 마지막 칸 = 루프 끝. 0 = 안 지남
+        // 표식은 모든 하위 시스템 앞에 하나씩(단계 첫 표식 = 단계 시작) + 루프 끝에 하나. 번호는 실행 순서
+        static long[] marks = Array.Empty<long>();   // 이번 프레임 표식 틱. 0 = 안 지남
+        static int[] phaseFirst = Array.Empty<int>(); // 단계마다 첫 표식 번호
+        static int endMark;
+        public static string[] MarkNames = Array.Empty<string>();   // 표식 m부터 다음 표식까지 = "단계.하위 시스템"
+        static long[] detailTicks = Array.Empty<long>();            // ResetDetail 뒤 표식별 누적 틱
+        static long detailFrames;
         static long frameStart;
         static ProfilerRecorder draws, setPass, batches, gcAlloc;
         static PlayerLoopSystem original;
@@ -40,7 +46,8 @@ namespace LXIUM_sephiria
             int n = top.Length;
             PhaseNames = new string[n];
             PhaseMs = new double[n][];
-            marks = new long[n + 1];
+            phaseFirst = new int[n];
+            var names = new System.Collections.Generic.List<string>();
             var copy = new PlayerLoopSystem[n];
             for (int i = 0; i < n; i++)
             {
@@ -48,14 +55,22 @@ namespace LXIUM_sephiria
                 PhaseMs[i] = new double[Capacity];
                 var sys = top[i];
                 var subs = sys.subSystemList ?? Array.Empty<PlayerLoopSystem>();
-                bool last = i == n - 1;
-                var list = new PlayerLoopSystem[subs.Length + (last ? 2 : 1)];
-                list[0] = Marker(i);
-                Array.Copy(subs, 0, list, 1, subs.Length);
-                if (last) list[list.Length - 1] = Marker(n);
-                sys.subSystemList = list;
+                var list = new System.Collections.Generic.List<PlayerLoopSystem>(subs.Length * 2 + 2);
+                phaseFirst[i] = names.Count;
+                if (subs.Length == 0) { list.Add(Marker(names.Count)); names.Add(PhaseNames[i]); }
+                foreach (var s in subs)
+                {
+                    list.Add(Marker(names.Count));
+                    names.Add(PhaseNames[i] + "." + (s.type?.Name ?? "?"));
+                    list.Add(s);
+                }
+                if (i == n - 1) { endMark = names.Count; list.Add(Marker(endMark)); names.Add("(end)"); }
+                sys.subSystemList = list.ToArray();
                 copy[i] = sys;
             }
+            MarkNames = names.ToArray();
+            marks = new long[MarkNames.Length];
+            detailTicks = new long[MarkNames.Length];
             loop.subSystemList = copy;
             PlayerLoop.SetPlayerLoop(loop);
 
@@ -103,17 +118,46 @@ namespace LXIUM_sephiria
             int n = PhaseMs.Length;
             for (int i = 0; i < n; i++)
             {
-                long start = marks[i];
+                long start = marks[phaseFirst[i]];
                 if (start == 0) { PhaseMs[i][slot] = 0; continue; }   // 이번 프레임에 안 돈 단계
-                long next = now;
-                for (int j = i + 1; j <= n; j++) if (marks[j] != 0) { next = marks[j]; break; }
+                long next = marks[endMark] != 0 ? marks[endMark] : now;
+                for (int j = i + 1; j < n; j++) if (marks[phaseFirst[j]] != 0) { next = marks[phaseFirst[j]]; break; }
                 PhaseMs[i][slot] = (next - start) * toMs;
             }
+            // 하위 시스템: 표식부터 다음으로 지난 표식까지 (안 돈 하위 시스템 몫은 앞 것에 붙음)
+            for (int m = 0; m < endMark; m++)
+            {
+                if (marks[m] == 0) continue;
+                long next = now;
+                for (int k = m + 1; k <= endMark; k++) if (marks[k] != 0) { next = marks[k]; break; }
+                detailTicks[m] += next - marks[m];
+            }
+            detailFrames++;
             Draws[slot] = draws.Valid ? (int)draws.LastValue : -1;
             SetPass[slot] = setPass.Valid ? (int)setPass.LastValue : -1;
             Batches[slot] = batches.Valid ? (int)batches.LastValue : -1;
             GcBytes[slot] = gcAlloc.Valid ? gcAlloc.LastValue : -1;
             Count++;
+        }
+
+        public static void ResetDetail()
+        {
+            Array.Clear(detailTicks, 0, detailTicks.Length);
+            detailFrames = 0;
+        }
+
+        /// <summary>ResetDetail 뒤 하위 시스템별 프레임당 평균 ms, 큰 것부터 top개</summary>
+        public static string DetailReport(int top)
+        {
+            if (detailFrames == 0) return "(프레임 없음)";
+            double toMs = 1000.0 / Stopwatch.Frequency / detailFrames;
+            var idx = new int[endMark];
+            for (int i = 0; i < idx.Length; i++) idx[i] = i;
+            Array.Sort(idx, (a, b) => detailTicks[b].CompareTo(detailTicks[a]));
+            var sb = new StringBuilder($"subsystems n={detailFrames}");
+            for (int i = 0; i < Math.Min(top, idx.Length); i++)
+                sb.Append("\n  ").Append((detailTicks[idx[i]] * toMs).ToString("F3")).Append(' ').Append(MarkNames[idx[i]]);
+            return sb.ToString();
         }
 
         /// <summary>기록 [from, Count)를 요약한다. 링에 남은 최근 Capacity 프레임까지만 본다.</summary>

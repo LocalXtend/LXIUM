@@ -34,7 +34,25 @@ namespace LXIUM_sephiria
         public float AutoStartSec;            // 타이틀 로드 n초 뒤 "게임 시작"을 누름
         public float AutoLabSec;              // AutoLabScene 로드 n초 뒤 비교 실행 (한 번)
         public string AutoLabScene = "MainWorld";
-        public bool QuitAfterLab;             // 자동 비교가 끝나면 게임 종료
+        public bool QuitAfterLab;             // 자동 비교(와 AutoProfile)가 끝나면 게임 종료
+        // CPU 내역 측정 (MelonLoader 실행 때만, Profile.cs)
+        public string ProfileKey = "F11";
+        public float ProfileSec = 8;          // 단계마다 측정 시간
+        public bool AutoProfile;              // 자동 비교 뒤 이어서 측정
+        public string[] ProfileMethods =      // "형식 전체 이름:메서드" (같은 이름 오버로드 모두, 포함 시간)
+        {
+            "UnityEngine.Rendering.Universal.UniversalRenderPipeline:Render",
+            "UnityEngine.Rendering.Universal.UniversalRenderPipeline:RenderSingleCamera",
+            "UnityEngine.Rendering.Universal.Renderer2D:OnRecordRenderGraph",
+            "UnityEngine.Rendering.Universal.LayerUtility:CalculateBatches",
+            "UnityEngine.Rendering.RenderGraphModule.RenderGraph:BeginRecording",
+            "UnityEngine.Rendering.RenderGraphModule.RenderGraph:EndRecordingAndExecute",
+            "UnityEngine.Rendering.RenderGraphModule.RenderGraph:CompileRenderGraph",
+            "UnityEngine.Rendering.RenderGraphModule.RenderGraph:ExecuteRenderGraph",
+            "UnityEngine.Rendering.VolumeManager:Update",
+            "UnityEngine.UI.CanvasUpdateRegistry:PerformUpdate",
+            "TMPro.TMP_UpdateManager:DoRebuilds",
+        };
         public float StatsIntervalSec = 10;   // 프레임 통계를 로그에 남기는 간격. 0 = 끔
         public float ArtPPU = 16;             // 텍셀 격자 자동 배율의 아트 PPU
         // 기본: 월드 절반 해상도 + LXIUM 픽셀 아트 확대 (3차 실측 +25%, 화면 거의 같음). 원래대로는 Name만 남기고 나머지 0·빈 값

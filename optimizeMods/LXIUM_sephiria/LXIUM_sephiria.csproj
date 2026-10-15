@@ -45,6 +45,8 @@
     <Reference Include="$(ManagedDir)\Newtonsoft.Json.dll" Private="false" />
     <!-- MelonLoader는 런처가 설치하므로 컴파일에만 씀 (docs/ai/addon.md 5장). 게임 폴더에 설치돼 있어야 빌드됨 -->
     <Reference Include="$(GameDir)\MelonLoader\net35\MelonLoader.dll" Private="false" />
+    <!-- 측정용(Profile.cs)으로만 씀. MelonLoader가 함께 실음 -->
+    <Reference Include="$(GameDir)\MelonLoader\net35\0Harmony.dll" Private="false" />
   </ItemGroup>
 
   <!-- MelonLoader 모드 정보. 버전을 ver.txt에서 가져오려고 코드 대신 여기서 만듦 -->

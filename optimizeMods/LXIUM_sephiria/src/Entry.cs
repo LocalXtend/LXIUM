@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -15,6 +16,7 @@ namespace LXIUM_sephiria
     {
         const string Running = "LXIUM_sephiria.running";
         static GameObject host;
+        public static string Loader { get; private set; }
 
         /// <param name="dir">settings.json·logs를 둘 폴더</param>
         public static void Start(string dir, string loader)
@@ -25,6 +27,7 @@ namespace LXIUM_sephiria
                 return;
             }
             AppDomain.CurrentDomain.SetData(Running, loader);
+            Loader = loader;
             Directory.CreateDirectory(dir);
             var settings = Settings.Load(dir);
             Frame.Install();
@@ -61,10 +64,11 @@ namespace LXIUM_sephiria
         Settings settings;
         string logDir;
         Lab lab;
-        Key probeKey, labKey;
+        Profile profile;   // Harmony가 없으면 null
+        Key probeKey, labKey, profileKey;
         float nextStats, probeAt = -1, autoStartAt = -1, autoLabAt = -1;
         int autoStartTries;
-        bool autoLabDone, autoLabRunning;
+        bool autoLabDone, autoLabRunning, autoProfileRunning;
         long statsFrom;
 
         public void Init(Settings s, string dir)
@@ -72,8 +76,12 @@ namespace LXIUM_sephiria
             settings = s;
             logDir = dir;
             lab = new Lab(s, dir);
+            // 측정용 Harmony는 MelonLoader가 싣는 것만 씀 (다른 모드가 싣는 0Harmony는 버전이 다를 수 있음)
+            if (Core.Loader == "MelonLoader" && AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "0Harmony"))
+                profile = new Profile(s, dir);
             probeKey = ParseKey(s.ProbeKey);
             labKey = ParseKey(s.LabKey);
+            profileKey = ParseKey(s.ProfileKey);
             nextStats = Time.realtimeSinceStartup + s.StatsIntervalSec;
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
@@ -108,6 +116,7 @@ namespace LXIUM_sephiria
             {
                 if (probeKey != Key.None && kb[probeKey].wasPressedThisFrame) RunProbe();
                 if (labKey != Key.None && kb[labKey].wasPressedThisFrame) lab.Toggle();
+                if (profile != null && profileKey != Key.None && kb[profileKey].wasPressedThisFrame) profile.Toggle();
             }
             if (probeAt > 0 && now >= probeAt)
             {
@@ -122,13 +131,20 @@ namespace LXIUM_sephiria
                 if (!lab.Running) { lab.Toggle(); autoLabRunning = true; }
             }
             lab.Tick();
+            profile?.Tick();
             Render.Tick();
             if (autoLabRunning && !lab.Running)
             {
                 autoLabRunning = false;
-                if (settings.QuitAfterLab) { Debug.Log("[LXIUM] auto: lab 끝, 게임 종료"); Application.Quit(); }
+                if (settings.AutoProfile && profile != null) { profile.Toggle(); autoProfileRunning = true; }
+                else if (settings.QuitAfterLab) Quit();
             }
-            if (lab.Running || settings.StatsIntervalSec <= 0)
+            if (autoProfileRunning && !profile.Running)
+            {
+                autoProfileRunning = false;
+                if (settings.QuitAfterLab) Quit();
+            }
+            if (lab.Running || (profile?.Running ?? false) || settings.StatsIntervalSec <= 0)
             {
                 statsFrom = Frame.Count;
                 nextStats = now + settings.StatsIntervalSec;
@@ -139,6 +155,12 @@ namespace LXIUM_sephiria
                 statsFrom = Frame.Count;
                 nextStats = now + settings.StatsIntervalSec;
             }
+        }
+
+        static void Quit()
+        {
+            Debug.Log("[LXIUM] auto: 측정 끝, 게임 종료");
+            Application.Quit();
         }
 
         /// <summary>타이틀의 "게임 시작" 버튼과 같은 UI_TitleLobby.NetworkHost(): 선택된 세이브로 호스트 시작. 장면이 안 바뀌면 10초마다 최대 3번</summary>
@@ -153,7 +175,13 @@ namespace LXIUM_sephiria
 
         void RunProbe()
         {
-            try { Debug.Log("[LXIUM] probe → logs/" + Path.GetFileName(Probe.Dump(logDir))); }
+            // 덤프와 같은 이름의 스크린샷도 남김 (화면 확인용, 이 프레임 끝에 찍힘)
+            try
+            {
+                string path = Probe.Dump(logDir);
+                ScreenCapture.CaptureScreenshot(Path.ChangeExtension(path, ".png"));
+                Debug.Log("[LXIUM] probe → logs/" + Path.GetFileName(path));
+            }
             catch (Exception e) { Debug.LogWarning("[LXIUM] probe 실패: " + e); }
         }
     }
