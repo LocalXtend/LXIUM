@@ -21,6 +21,7 @@
 | `Loaders` | `addon.md` 4장 감지 표. 버전 = 감지 DLL의 ProductVersion(`+` 뒤 제거). 새 로더는 규격 표 → `Loaders.Table` 순서로 추가 |
 | `Installer` | 변형 선택·설치·제거. 기록 `<게임 루트>/.lxium/<id>.json`, 백업 `.lxium/backup/<id>/`. zip 경로가 루트 밖이면 거부 |
 | `LoaderSetup` | 로더 설치·제거. 받는 곳: BepInEx 5 = GitHub `BepInEx/BepInEx` 정식 릴리스 중 `v5.*`의 `BepInEx_win_<x64/x86>_*.zip`, BepInEx 6 = `builds.bepinex.dev/projects/bepinex_be` 첫(최신) `BepInEx-Unity.<IL2CPP/Mono>-win-<arch>-6.0.0-be.N*.zip`, MelonLoader = GitHub `LavaGang/MelonLoader` 최신 정식 `MelonLoader.<x64/x86>.zip`. 비트 = 게임 exe PE Machine, 백엔드 = `GameAssembly.dll` 유무. 세 zip 모두 게임 루트에 그대로 풂. 제거 = `Footprint` 표의 파일·폴더 삭제(폴더 안 다른 모드·설정 포함, `changelog.txt`는 내용에 BepInEx가 있을 때만) |
+| `ConfigFile` | `[섹션]` + `키 = 값` 줄 단위 읽기(BepInEx .cfg, MelonLoader TOML 공통). BepInEx 주석 `##` 설명, `# Setting type/Default value/Acceptable values/Acceptable value range` 해석. 여러 줄 TOML 값은 제외. 저장 = 바뀐 줄만 교체(따옴표 유지), UTF-8 BOM 없음, 줄바꿈 유지. 형식(Int/Single/Boolean/선택지) 검사 |
 | `SteamStore` | `store.steampowered.com/api/appdetails?appids=<steamAppId>&l=koreana`. 키 없음. 설명·장르·출시일·개발·배급. 한국어가 없으면 Steam이 영어로 돌려줌. `steamAppId`가 없으면 정보 없음 |
 
 ## 로더 흐름
@@ -29,6 +30,13 @@
 - 로더 카드: 감지 없으면 애드온 변형의 로더별 설치 버튼, 감지되면 선택한 로더 제거 버튼
 - 로더 제거 전에 그 로더 변형으로 설치한 LXIUM 애드온을 먼저 제거(백업 복원)
 - 네트워크 검사: `dotnet run --project launcher/tests -- --net` (임시 폴더에 세 로더 설치·감지·제거)
+
+## 설정 흐름
+
+- 애드온 줄 "설정" 버튼 → `ConfigFile.ModConfigPath` (기록의 변형, 없으면 선택한 로더 기준)
+- 로더 카드 "로더 설정" → `BepInEx/config/BepInEx.cfg` 또는 `UserData/Loader.cfg`
+- `Views/ConfigWindow`: 참/거짓 = 체크, 선택지 = 목록, 그 밖 = 글. 저장 시 잘못된 값이 있으면 알리고 창을 다시 엶
+- 파일이 없으면 게임을 한 번 실행하라고 안내
 
 ## 실행 폴더
 

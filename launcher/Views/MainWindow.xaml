@@ -160,6 +160,8 @@
                                     <Border Style="{StaticResource Inner}" Padding="18,16" Margin="0,0,0,12">
                                         <DockPanel>
                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Style="{StaticResource Ghost}" Content="설정" Click="ModConfig_Click" Margin="0,0,8,0"
+                                                        Visibility="{Binding IsInstalled, Converter={StaticResource Vis}}"/>
                                                 <Button Style="{StaticResource Ghost}" Content="제거" Click="Uninstall_Click" Margin="0,0,8,0"
                                                         Visibility="{Binding IsInstalled, Converter={StaticResource Vis}}"/>
                                                 <Button Style="{StaticResource Primary}" Content="{Binding InstallLabel}" Click="Install_Click"/>
@@ -190,8 +192,10 @@
                         <ListBox x:Name="LoaderList" ItemsSource="{Binding Loaders}" ItemContainerStyle="{StaticResource PillItem}"
                                  ItemsPanel="{StaticResource Wrap}" Background="Transparent" BorderThickness="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
-                        <Button x:Name="RemoveLoaderButton" Style="{StaticResource Ghost}" Content="선택한 로더 제거"
-                                Click="RemoveLoader_Click" HorizontalAlignment="Left" Margin="0,6,0,0"/>
+                        <WrapPanel x:Name="LoaderButtons" Margin="0,6,0,0">
+                            <Button Style="{StaticResource Ghost}" Content="로더 설정" Click="LoaderConfig_Click" Margin="0,0,8,8"/>
+                            <Button Style="{StaticResource Ghost}" Content="선택한 로더 제거" Click="RemoveLoader_Click" Margin="0,0,8,8"/>
+                        </WrapPanel>
                         <ItemsControl ItemsSource="{Binding InstallableLoaders}" ItemsPanel="{StaticResource Wrap}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>

@@ -134,6 +134,54 @@ var info = SteamStore.Parse(doc.RootElement.GetProperty("ok"));
 Check(info is { Summary: "A & B", Released: "2025년 7월 18일", Genres: ["어드벤처"], Developers: ["Dev"], Publishers: ["Pub1", "Pub2"] }, "Steam 상점 해석");
 Check(SteamStore.Parse(doc.RootElement.GetProperty("missing")) is null, "상점에 없는 앱");
 
+// 설정 파일 읽기·저장 (BepInEx .cfg, MelonLoader TOML)
+var cfgDir = Directory.CreateTempSubdirectory("lxium-cfg").FullName;
+try
+{
+    var bepPath = Path.Combine(cfgDir, "bep.cfg");
+    const string bep = "## Settings file was created by plugin X v1\r\n## Plugin GUID: X\r\n\r\n[Frame Rate]\r\n\r\n" +
+        "## 목표 fps\r\n# Setting type: Int32\r\n# Default value: 0\r\n# Acceptable value range: From -1 to 240\r\nTargetFps = 0\r\n\r\n" +
+        "## 끄기\r\n# Setting type: Boolean\r\n# Default value: true\r\nMsaaOff = true\r\n\r\n" +
+        "## 모드\r\n# Setting type: SsaoMode\r\n# Default value: Low\r\n# Acceptable values: Off, Low, High\r\nSsao = Low\r\n\r\n" +
+        "## 로그\r\n# Setting type: LogLevel\r\n# Default value: Warn, Error\r\n# Acceptable values: Info, Warn, Error\r\n" +
+        "# Multiple values can be set at the same time by separating them with , (e.g. Debug, Warning)\r\nLog = Warn, Error\r\n";
+    File.WriteAllText(bepPath, bep);
+    var cfg = ConfigFile.Load(bepPath);
+    var entries = cfg.Sections.SelectMany(s => s.Entries).ToDictionary(e => e.Key);
+    Check(cfg.Sections is [{ Name: "Frame Rate" }] && entries.Count == 4, "BepInEx 섹션·항목");
+    Check(entries["TargetFps"] is { Description: "목표 fps", Type: "Int32", Default: "0", Range: "From -1 to 240", IsText: true }, "BepInEx 주석 해석");
+    Check(entries["MsaaOff"].IsBool && entries["Ssao"] is { HasChoices: true, Choices: ["Off", "Low", "High"] }, "참/거짓·선택지 판별");
+
+    Check(entries["Log"] is { Flags: true, IsText: true, Description: "로그" }, "플래그 열거형은 글 입력");
+    entries["Log"].Value = "Warn, Nope";
+    Check(cfg.Invalid().SequenceEqual(["Log: Warn, Nope"]), "플래그 잘못된 값 감지");
+    entries["Log"].Value = "Info, Error";
+    entries["TargetFps"].Value = "abc";
+    Check(cfg.Invalid().SequenceEqual(["TargetFps: abc"]), "잘못된 숫자 감지");
+    entries["TargetFps"].Value = "144";
+    entries["MsaaOff"].BoolValue = false;
+    entries["Ssao"].Value = "High";
+    Check(cfg.Invalid().Count == 0 && cfg.IsChanged, "바뀐 값 확인");
+    cfg.Save();
+    var expected = bep.Replace("TargetFps = 0", "TargetFps = 144").Replace("MsaaOff = true", "MsaaOff = false").Replace("Ssao = Low", "Ssao = High").Replace("Log = Warn, Error", "Log = Info, Error");
+    Check(File.ReadAllText(bepPath) == expected && !cfg.IsChanged, "바뀐 줄만 저장");
+
+    var tomlPath = Path.Combine(cfgDir, "ml.cfg");
+    const string toml = "[LXIUM_test]\n# 이름\nName = \"a \\\"b\\\"\"\nScale = 1.5\nList = [\n  1,\n]\nOn = false\n";
+    File.WriteAllText(tomlPath, toml);
+    var ml = ConfigFile.Load(tomlPath);
+    var me = ml.Sections.SelectMany(s => s.Entries).ToDictionary(e => e.Key);
+    Check(me.Keys.Order().SequenceEqual(["Name", "On", "Scale"]) && me["Name"] is { Value: "a \"b\"", Description: "이름" }, "TOML 읽기 (여러 줄 값 제외)");
+    me["Name"].Value = "c\"d";
+    me["On"].BoolValue = true;
+    ml.Save();
+    Check(File.ReadAllText(tomlPath) == toml.Replace("Name = \"a \\\"b\\\"\"", "Name = \"c\\\"d\"").Replace("On = false", "On = true"), "TOML 저장 (따옴표 유지)");
+}
+finally
+{
+    Directory.Delete(cfgDir, true);
+}
+
 // 실제 배포처에서 로더 받기 (네트워크 필요): dotnet run --project launcher/tests -- --net
 if (args.Contains("--net"))
 {

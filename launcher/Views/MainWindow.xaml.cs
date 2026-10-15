@@ -52,7 +52,7 @@ public partial class MainWindow : Window
                 1 => "게임 폴더에서 감지한 로더입니다.",
                 _ => "로더가 여러 개 있습니다. 모드를 설치할 로더를 고르세요.",
             };
-        RemoveLoaderButton.Visibility = detail.Loaders.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LoaderButtons.Visibility = detail.Loaders.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         Subtitle.Text = detail.Game.Name;
         BackButton.Visibility = Visibility.Visible;
         RefreshButton.Visibility = Visibility.Collapsed;
@@ -83,6 +83,9 @@ public partial class MainWindow : Window
         Subtitle.Text = message ?? (DetailView.DataContext as GameDetail)?.Game.Name ?? "";
     }
 
+    public bool EditConfig(ConfigFile config, string heading) =>
+        new ConfigWindow(config, heading) { Owner = this }.ShowDialog() == true;
+
     public void Alert(string message) => MessageBox.Show(this, message, "LXIUM");
 
     public bool Confirm(string message) =>
@@ -99,6 +102,11 @@ public partial class MainWindow : Window
     void RemoveLoader_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedLoader is LoaderInfo loader) controller.UninstallLoader(loader);
+    }
+    void ModConfig_Click(object sender, RoutedEventArgs e) => controller.OpenModConfig(Item<AddonRow>(sender));
+    void LoaderConfig_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedLoader is LoaderInfo loader) controller.OpenLoaderConfig(loader);
     }
     void Play_Click(object sender, RoutedEventArgs e) => controller.Play();
     void Folder_Click(object sender, RoutedEventArgs e) => controller.OpenFolder();

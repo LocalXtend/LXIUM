@@ -142,6 +142,43 @@ public sealed class LibraryController(MainWindow view)
         Refresh();
     }
 
+    public void OpenModConfig(AddonRow row)
+    {
+        if (current?.Root is not string root) return;
+        var variant = row.Installed?.Variant ?? view.SelectedLoader?.Id ?? "";
+        EditConfig(ConfigFile.ModConfigPath(root, row.Addon.Manifest.Id, variant), $"{row.Title} 설정");
+    }
+
+    public void OpenLoaderConfig(LoaderInfo loader)
+    {
+        if (current?.Root is not string root) return;
+        EditConfig(ConfigFile.LoaderConfigPath(root, loader.Id), $"{loader.Name} 설정");
+    }
+
+    /// <summary>설정 창을 열고, 저장을 누르면 값을 확인한 뒤 저장합니다. 잘못된 값이 있으면 알리고 창을 다시 엽니다.</summary>
+    void EditConfig(string? path, string heading)
+    {
+        if (path is null || !File.Exists(path))
+        {
+            view.Alert("설정 파일이 아직 없습니다. 게임을 한 번 실행하면 만들어집니다.");
+            return;
+        }
+        ConfigFile config;
+        try { config = ConfigFile.Load(path); }
+        catch (Exception e) { view.Alert($"설정 파일을 읽지 못했습니다: {e.Message}"); return; }
+
+        while (view.EditConfig(config, heading))
+        {
+            if (config.Invalid() is { Count: > 0 } bad)
+            {
+                view.Alert("형식에 맞지 않는 값이 있습니다.\n" + string.Join("\n", bad));
+                continue;
+            }
+            try { config.Save(); return; }
+            catch (Exception e) { view.Alert($"저장 실패: {e.Message}"); }
+        }
+    }
+
     public void Play()
     {
         if (current?.Info.SteamAppId is int id)

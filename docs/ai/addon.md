@@ -88,6 +88,10 @@ UTF-8 JSON. 주석 금지.
 3. 로더가 허용하면 모드 파일은 `<id>` 이름의 하위 폴더에 둠 (다른 모드와 파일명 충돌 방지)
 4. 원본 게임 파일 교체는 최후 수단. 런타임 패치(Harmony 등)를 우선. 교체하면 런처가 백업·복원함
 5. 변형마다 제공 기능이 다르면 `description`에 적음
+6. 설정은 로더의 설정 기능으로, 런처가 편집할 수 있는 위치에 둠 (게임 루트 기준)
+   - `bepinex5`·`bepinex6`: `Config.Bind`, 플러그인 GUID = `<id>` → `BepInEx/config/<id>.cfg`. 설명·기본값·형식·선택지는 BepInEx가 주석으로 기록하고 런처가 그대로 보여 줌
+   - `melonloader`: `MelonPreferences.CreateCategory` 후 `category.SetFilePath("UserData/<id>.cfg")` → `UserData/<id>.cfg` (TOML). 항목 설명은 `CreateEntry`의 description
+   - 별도 JSON 등 자체 설정 파일 금지 (런처 설정 창에 나오지 않음)
 
 ## 6. 런처 동작
 
@@ -102,6 +106,8 @@ UTF-8 JSON. 주석 금지.
 5. 로더가 없으면 사용자가 `variants` 중 선택. `none`이 아니면 런처가 로더 설치
 6. 변형 폴더를 게임 루트에 복사. 덮어쓰는 기존 파일은 백업. 단, 경로 조각이나 파일 이름이 애드온 `id`와 같은 파일(이 애드온 자신의 파일, 예: 수동으로 넣은 이전 빌드)은 원본이 아니므로 백업하지 않고 먼저 지움
 7. 설치한 파일 목록·백업 목록을 기록: 게임 루트의 `.lxium/<id>.json`, 백업은 `.lxium/backup/<id>/`
+
+설정: 애드온 설정 파일(5장 6번)과 로더 설정(`BepInEx/config/BepInEx.cfg`, `UserData/Loader.cfg`)을 런처에서 편집. 바뀐 값의 줄만 고쳐 쓰고 나머지 줄은 그대로 둠. 파일이 없으면 게임을 한 번 실행하라고 안내
 
 업데이트: 이전 버전 제거 후 새 버전 설치. 기록에 없는 파일(설정·로그·캐시)은 건드리지 않음
 
