@@ -32,13 +32,35 @@ public static class Installer
     }
 
     /// <summary>
-    /// 변형 폴더를 게임 루트에 복사합니다. 이미 설치돼 있으면 먼저 제거합니다(업데이트).
+    /// 경로 조각이나 파일 이름이 애드온 id와 같으면 그 애드온 자신의 파일입니다
+    /// (BepInEx/plugins/&lt;id&gt;/, Mods/&lt;id&gt;.dll). 원본 게임 파일이 아니므로 백업·복원하지 않습니다.
+    /// </summary>
+    static bool IsOwn(string rel, string id) =>
+        rel.Split('/').Any(s => s.Equals(id, StringComparison.OrdinalIgnoreCase)
+                                || Path.GetFileNameWithoutExtension(s).Equals(id, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>설치 기록 없이 게임 폴더에 있는 이 애드온의 파일 (수동 복사, 기록 손실). 기록이 있으면 빈 목록</summary>
+    public static List<string> FindUntracked(Addon addon, string root)
+    {
+        var id = addon.Manifest.Id;
+        if (Read(root, id) is not null) return [];
+        using var zip = ZipFile.OpenRead(addon.ZipPath);
+        return zip.Entries
+            .Where(e => e.Name != "")
+            .Select(e => e.FullName.Replace('\\', '/'))
+            .Select(n => (Variant: n[..Math.Max(n.IndexOf('/'), 0)], Rel: n[(n.IndexOf('/') + 1)..]))
+            .Where(x => addon.Manifest.Variants.ContainsKey(x.Variant) && IsOwn(x.Rel, id) && File.Exists(SafePath(root, x.Rel)))
+            .Select(x => x.Rel).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// 변형 폴더를 게임 루트에 복사합니다. 이미 설치돼 있으면(기록 없는 설치 포함) 먼저 제거합니다(업데이트).
     /// 덮어쓰는 파일은 백업하고, 중간에 실패해도 그때까지 한 일을 기록해 제거로 되돌릴 수 있게 합니다.
     /// </summary>
     public static void Install(Addon addon, string variant, string root)
     {
         var id = addon.Manifest.Id;
-        if (Read(root, id) is not null) Uninstall(root, id);
+        Uninstall(addon, root);
 
         var record = new InstallRecord(id, addon.Manifest.Version, variant, [], []);
         var prefix = variant + "/";
@@ -70,22 +92,27 @@ public static class Installer
         }
     }
 
-    /// <summary>기록된 파일 삭제 → 백업 복원 → 비게 된 폴더 삭제. 기록에 없는 파일(설정·로그)은 남깁니다.</summary>
-    public static void Uninstall(string root, string id)
+    /// <summary>
+    /// 기록된 파일 삭제 → 백업 복원 → 비게 된 폴더 삭제. 기록에 없는 파일(설정·로그)은 남깁니다.
+    /// 기록이 없으면 게임 폴더에 있는 이 애드온 자신의 파일만 지웁니다.
+    /// </summary>
+    public static void Uninstall(Addon addon, string root)
     {
+        var id = addon.Manifest.Id;
         var record = Read(root, id);
-        if (record is null) return;
-        foreach (var rel in record.Files)
+        foreach (var rel in record?.Files ?? FindUntracked(addon, root))
         {
             var path = SafePath(root, rel);
             if (File.Exists(path)) File.Delete(path);
             RemoveEmptyDirs(root, Path.GetDirectoryName(path)!);
         }
+        if (record is null) return;
         var backupDir = BackupDir(root, id);
         foreach (var rel in record.Backups)
         {
             var backup = SafePath(backupDir, rel);
-            if (!File.Exists(backup)) continue;
+            // 0.1.x는 이미 있던 같은 모드 파일도 백업했으므로, 그런 백업은 복원하지 않음
+            if (!File.Exists(backup) || IsOwn(rel, id)) continue;
             var dest = SafePath(root, rel);
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             File.Move(backup, dest, true);
@@ -96,7 +123,7 @@ public static class Installer
     }
 
     /// <summary>baseDir 밖을 가리키는 경로(절대 경로, ..)는 거부합니다.</summary>
-    static string SafePath(string baseDir, string rel)
+    internal static string SafePath(string baseDir, string rel)
     {
         var full = Path.GetFullPath(Path.Combine(baseDir, rel));
         var basePath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(baseDir)) + Path.DirectorySeparatorChar;
@@ -105,11 +132,15 @@ public static class Installer
         return full;
     }
 
-    static void RemoveEmptyDirs(string root, string dir)
+    internal static void RemoveEmptyDirs(string root, string dir)
     {
         var stop = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        for (var d = Path.GetFullPath(dir); d.Length > stop.Length && Directory.Exists(d) && !Directory.EnumerateFileSystemEntries(d).Any();
-             d = Path.GetDirectoryName(d)!)
+        // 이미 없는 폴더는 건너뛰고 위로 올라가며, 비어 있지 않은 폴더를 만나면 멈춥니다.
+        for (var d = Path.GetFullPath(dir); d.Length > stop.Length; d = Path.GetDirectoryName(d)!)
+        {
+            if (!Directory.Exists(d)) continue;
+            if (Directory.EnumerateFileSystemEntries(d).Any()) break;
             Directory.Delete(d);
+        }
     }
 }

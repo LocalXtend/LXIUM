@@ -48,10 +48,11 @@ public partial class MainWindow : Window
         LoaderHint.Text = detail.Game.Root is null ? "게임 폴더를 찾으면 로더를 감지합니다."
             : detail.Loaders.Count switch
             {
-                0 => "감지된 로더가 없습니다. 모드에 맞는 로더를 먼저 설치하세요.",
+                0 => "감지된 로더가 없습니다. 아래 버튼으로 모드에 맞는 로더를 설치할 수 있습니다.",
                 1 => "게임 폴더에서 감지한 로더입니다.",
                 _ => "로더가 여러 개 있습니다. 모드를 설치할 로더를 고르세요.",
             };
+        RemoveLoaderButton.Visibility = detail.Loaders.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         Subtitle.Text = detail.Game.Name;
         BackButton.Visibility = Visibility.Visible;
         RefreshButton.Visibility = Visibility.Collapsed;
@@ -75,6 +76,13 @@ public partial class MainWindow : Window
         Publishers.Text = Join(info?.Publishers);
     }
 
+    /// <summary>오래 걸리는 작업 중에는 상세 화면을 잠그고 머리글에 진행 상황을 보여 줍니다. null이면 해제</summary>
+    public void SetBusy(string? message)
+    {
+        DetailView.IsEnabled = BackButton.IsEnabled = message is null;
+        Subtitle.Text = message ?? (DetailView.DataContext as GameDetail)?.Game.Name ?? "";
+    }
+
     public void Alert(string message) => MessageBox.Show(this, message, "LXIUM");
 
     public bool Confirm(string message) =>
@@ -85,8 +93,13 @@ public partial class MainWindow : Window
     async void Game_Click(object sender, RoutedEventArgs e) => await controller.OpenAsync(Item<Game>(sender));
     void Back_Click(object sender, RoutedEventArgs e) => controller.Back();
     async void Refresh_Click(object sender, RoutedEventArgs e) => await controller.LoadAsync();
-    void Install_Click(object sender, RoutedEventArgs e) => controller.Install(Item<AddonRow>(sender));
+    async void Install_Click(object sender, RoutedEventArgs e) => await controller.InstallAsync(Item<AddonRow>(sender));
     void Uninstall_Click(object sender, RoutedEventArgs e) => controller.Uninstall(Item<AddonRow>(sender));
+    async void InstallLoader_Click(object sender, RoutedEventArgs e) => await controller.InstallLoaderAsync(Item<LoaderChoice>(sender));
+    void RemoveLoader_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedLoader is LoaderInfo loader) controller.UninstallLoader(loader);
+    }
     void Play_Click(object sender, RoutedEventArgs e) => controller.Play();
     void Folder_Click(object sender, RoutedEventArgs e) => controller.OpenFolder();
 }

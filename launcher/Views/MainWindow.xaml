@@ -190,6 +190,15 @@
                         <ListBox x:Name="LoaderList" ItemsSource="{Binding Loaders}" ItemContainerStyle="{StaticResource PillItem}"
                                  ItemsPanel="{StaticResource Wrap}" Background="Transparent" BorderThickness="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+                        <Button x:Name="RemoveLoaderButton" Style="{StaticResource Ghost}" Content="선택한 로더 제거"
+                                Click="RemoveLoader_Click" HorizontalAlignment="Left" Margin="0,6,0,0"/>
+                        <ItemsControl ItemsSource="{Binding InstallableLoaders}" ItemsPanel="{StaticResource Wrap}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource Primary}" Content="{Binding Label}" Click="InstallLoader_Click" Margin="0,0,8,8"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                 </Border>
             </Grid>

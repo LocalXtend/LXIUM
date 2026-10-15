@@ -20,7 +20,15 @@
 | `Game` | `game.id`로 애드온을 묶은 게임. 라이브러리 = 애드온이 있는 게임만 |
 | `Loaders` | `addon.md` 4장 감지 표. 버전 = 감지 DLL의 ProductVersion(`+` 뒤 제거). 새 로더는 규격 표 → `Loaders.Table` 순서로 추가 |
 | `Installer` | 변형 선택·설치·제거. 기록 `<게임 루트>/.lxium/<id>.json`, 백업 `.lxium/backup/<id>/`. zip 경로가 루트 밖이면 거부 |
+| `LoaderSetup` | 로더 설치·제거. 받는 곳: BepInEx 5 = GitHub `BepInEx/BepInEx` 정식 릴리스 중 `v5.*`의 `BepInEx_win_<x64/x86>_*.zip`, BepInEx 6 = `builds.bepinex.dev/projects/bepinex_be` 첫(최신) `BepInEx-Unity.<IL2CPP/Mono>-win-<arch>-6.0.0-be.N*.zip`, MelonLoader = GitHub `LavaGang/MelonLoader` 최신 정식 `MelonLoader.<x64/x86>.zip`. 비트 = 게임 exe PE Machine, 백엔드 = `GameAssembly.dll` 유무. 세 zip 모두 게임 루트에 그대로 풂. 제거 = `Footprint` 표의 파일·폴더 삭제(폴더 안 다른 모드·설정 포함, `changelog.txt`는 내용에 BepInEx가 있을 때만) |
 | `SteamStore` | `store.steampowered.com/api/appdetails?appids=<steamAppId>&l=koreana`. 키 없음. 설명·장르·출시일·개발·배급. 한국어가 없으면 Steam이 영어로 돌려줌. `steamAppId`가 없으면 정보 없음 |
+
+## 로더 흐름
+
+- 로더 없음 + 애드온이 로더 필요 → 확인 후 변형 중 첫 번째로 설치 가능한 로더 설치 → 애드온 설치 (`addon.md` 6장 5단계)
+- 로더 카드: 감지 없으면 애드온 변형의 로더별 설치 버튼, 감지되면 선택한 로더 제거 버튼
+- 로더 제거 전에 그 로더 변형으로 설치한 LXIUM 애드온을 먼저 제거(백업 복원)
+- 네트워크 검사: `dotnet run --project launcher/tests -- --net` (임시 폴더에 세 로더 설치·감지·제거)
 
 ## 실행 폴더
 
@@ -40,5 +48,4 @@ addons/<id>-<version>.zip
 
 ## 아직 없는 것
 
-- 로더 자동 설치 (`addon.md` 6장 설치 5단계). 지금은 로더가 없으면 필요한 로더 이름을 알리고 설치 거부
 - 수동 게임 폴더 지정 (Steam 게임만 지원)
