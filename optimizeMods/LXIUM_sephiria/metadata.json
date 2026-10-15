@@ -1,7 +1,0 @@
-{
-  "modName": "LXIUM Sephiria",
-  "modVersion": "0.6.0",
-  "modAuthor": "LocalXtend",
-  "dllFile": "LXIUM_sephiria.dll",
-  "entryClass": "LXIUM_sephiria.Entry"
-}
