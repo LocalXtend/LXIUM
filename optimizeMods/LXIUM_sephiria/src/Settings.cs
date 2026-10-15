@@ -11,10 +11,12 @@ namespace LXIUM_sephiria
         public string Name = "game";
         public float LightScale;    // Renderer2DData 2D 조명 텍스처 배율 (게임 1)
         public float RenderScale;   // URP 렌더 배율. 화면 공간 오버레이 UI는 영향 없음
-        public string Upscale = ""; // URP 업스케일 필터: Auto, Linear, Point, FSR, STP
+        public string Upscale = ""; // URP 업스케일 필터: Auto, Linear, Point, FSR, STP, 또는 Texel (LXIUM 픽셀 아트 확대)
+        public float Sharpness = -1; // FSR·Texel 뒤 RCAS 적응형 선명화 0~1. 0 = 끔, 음수 = 게임 값
 
         public override string ToString() =>
-            $"{Name}(light={(LightScale > 0 ? LightScale.ToString("0.###") : "game")} scale={(RenderScale > 0 ? RenderScale.ToString("0.###") : "game")} upscale={(Upscale.Length > 0 ? Upscale : "game")})";
+            $"{Name}(light={(LightScale > 0 ? LightScale.ToString("0.###") : "game")} scale={(RenderScale > 0 ? RenderScale.ToString("0.###") : "game")} " +
+            $"upscale={(Upscale.Length > 0 ? Upscale : "game")} sharp={(Sharpness >= 0 ? Sharpness.ToString("0.##") : "game")})";
     }
 
     /// <summary>모드 폴더의 settings.json. 없으면 기본값으로 만들고, 있으면 읽은 뒤 새 항목을 채워 다시 쓴다.</summary>
@@ -33,9 +35,11 @@ namespace LXIUM_sephiria
             new RenderPreset { Name = "game" },
             new RenderPreset { Name = "light0.5", LightScale = 0.5f },
             new RenderPreset { Name = "light0.25", LightScale = 0.25f },
-            new RenderPreset { Name = "scale0.75", RenderScale = 0.75f, Upscale = "Point" },
-            new RenderPreset { Name = "scale0.5", RenderScale = 0.5f, Upscale = "Point" },
-            new RenderPreset { Name = "scale0.5fsr", RenderScale = 0.5f, Upscale = "FSR" },
+            new RenderPreset { Name = "point0.5", RenderScale = 0.5f, Upscale = "Point" },
+            new RenderPreset { Name = "fsr0.5", RenderScale = 0.5f, Upscale = "FSR" },
+            new RenderPreset { Name = "texel0.5", RenderScale = 0.5f, Upscale = "Texel", Sharpness = 0 },
+            new RenderPreset { Name = "texel0.5rcas", RenderScale = 0.5f, Upscale = "Texel" },
+            new RenderPreset { Name = "texel0.75", RenderScale = 0.75f, Upscale = "Texel", Sharpness = 0 },
             new RenderPreset { Name = "game2" },
         };
 

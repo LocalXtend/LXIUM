@@ -29,6 +29,7 @@
     <Reference Include="$(ManagedDir)\System.Core.dll" Private="false" />
     <Reference Include="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
     <Reference Include="$(ManagedDir)\UnityEngine.JSONSerializeModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.AssetBundleModule.dll" Private="false" />
     <Reference Include="$(ManagedDir)\UnityEngine.ScreenCaptureModule.dll" Private="false" />
     <Reference Include="$(ManagedDir)\UnityEngine.ParticleSystemModule.dll" Private="false" />
     <Reference Include="$(ManagedDir)\UnityEngine.TilemapModule.dll" Private="false" />
@@ -41,6 +42,11 @@
     <Reference Include="$(ManagedDir)\Unity.RenderPipelines.Universal.Runtime.dll" Private="false" />
     <Reference Include="$(ManagedDir)\Unity.RenderPipelines.Universal.2D.Runtime.dll" Private="false" />
     <Reference Include="$(ManagedDir)\Assembly-CSharp.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- shaders/build_shaders.py로 만든 셰이더 번들. DLL에 넣어 파일 하나로 배포 -->
+  <ItemGroup>
+    <EmbeddedResource Include="res\lxium_sephiria.bundle" LogicalName="lxium_sephiria.bundle" />
   </ItemGroup>
 
   <!-- docs/ai/addon.md 7장: lxium.json의 version은 ver.txt와 같아야 함. 게임 로더가 읽는 metadata.json도 같이 확인 -->

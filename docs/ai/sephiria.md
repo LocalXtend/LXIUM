@@ -37,6 +37,8 @@
 
 ### 2.1 로드 순서
 
+시점: 타이틀 화면에서는 아직 안 돌고, 이어하기·새 게임으로 게임 장면에 들어갈 때 처음 돎 (`Player-prev.log`에서 세이브 불러오기·서버 시작 뒤에 `[AddOnLoader]`) [관찰]. 그래서 모드의 계측도 그때부터 시작한다.
+
 `GameDataLoader.Awake` [관찰]
 
 1. `InternalMod.Register()` — 게임 자신도 모드 API를 씀: `OnPlayerEvade`에 회피 시 `EVASIONCOOLDOWN` 마법 충전 효과를 등록
@@ -119,6 +121,7 @@
 | Renderer2DData | 조명 텍스처 배율 **1** (URP 기본 0.5), 블렌드 스타일 4, 조명 텍스처 최대 16, 깊이·스텐실 켬, 투명 정렬 CustomAxis |
 | 타이틀 | Main Camera(직교 5.63, HDR, 후처리) + WaterCamera(1920x640 RT, MSAA) |
 
+- 셰이더 객체 86개, 모두 에셋 파일 안(번들 없음), 플랫폼은 D3D11 하나 [관찰: UnityPy, `sephiria-render.md` C장]
 - 빌드에 든 셰이더 [관찰: 에셋 문자열]
   - URP 후처리: Bloom, UberPost, FinalPost, LutBuilderLdr/Hdr, Edge Adaptive Spatial Upsampling(FSR1 EASU), Scaling Setup, TemporalAA, SMAA, 피사계 심도 등
   - 2D: `Universal Render Pipeline/2D/Sprite-Lit-Default`, `Sprite-Unlit-Default`, `Sprites/Default`, `Sprites/ScreenBased`, Particles/Unlit

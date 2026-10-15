@@ -47,15 +47,28 @@
 
 ### C. 자체 셰이더
 
-셰이더는 실행 중 컴파일이 안 된다. 이 PC의 Unity 에디터(6000.5.7f1)는 게임(6000.3.21f1)과 버전이 달라 그 번들은 게임에서 못 읽을 가능성이 높다 [추론]. 이 저장소 `optimizeMods/LXIUM_mahosaba/shaders/build_shaders.py` 방식(게임 번들의 원본 셰이더 객체를 틀로 쓰고 D3D11 DXBC만 `d3dcompiler_47`로 바꿈)을 세피리아 셰이더에 맞춰 쓴다. UnityPy 설치가 필요하다 (지금 이 PC에 없음 [관찰]).
+셰이더는 실행 중 컴파일이 안 된다. 이 PC의 Unity 에디터(6000.5.7f1)는 게임(6000.3.21f1)과 버전이 달라 그 번들은 게임에서 못 읽을 가능성이 높다 [추론]. 그래서 에디터 없이 만든다.
 
-| ID | 셰이더 | 내용 | 쓰는 곳 |
-|---|---|---|---|
-| C1 | `LXIUM/TexelUpscale` | 선명 쌍선형(정수배 최근접 + 텍셀 경계 1픽셀만 보간) + 약한 대비 적응 선명화. 카메라가 텍셀 이하로 움직여도 흔들림 없음 | B1·B2 화면 합성 |
-| C2 | `LXIUM/SpriteLitLite` | `Sprite-Lit-Default`에서 실제로 쓰는 블렌드 스타일·마스크 채널만 남긴 판 | 대부분의 월드 스프라이트 (probe 셰이더 수 확인 후) |
-| C3 | `LXIUM/OverlayFused` | 안개 노이즈 + 분위기 색 + 비·눈 스크롤을 한 패스로 | B4 |
-| C4 | `LXIUM/Deferred2D` | 정적 층 알베도 × 조명 텍스처 (블렌드 스타일 합성 규칙은 URP 2D와 같게) | B3 |
-| C5 | `LXIUM/LightLite` | 점 조명을 텍셀 해상도에서 한 번에 누적 (쿠키 포함) | B5 또는 B1의 조명 단계 |
+**빌드 도구** (`optimizeMods/LXIUM_sephiria/shaders/build_shaders.py`, UnityPy 1.25.4 + `d3dcompiler_47.dll`, 0.2.0)
+
+1. 게임 셰이더 86개는 번들이 아니라 `globalgamemanagers.assets`·`sharedassets0~2.assets`·`resources.assets` 안에 있고, 플랫폼은 **D3D11(4) 하나뿐** [관찰: UnityPy]. 플레이어 빌드라 타입 트리가 없어서 UnityPy TPK의 6000.3.21f1 타입 트리로 읽음 (86개 모두 읽힘 = 트리가 맞음)
+2. 원본 셰이더 객체를 틀로: 첫 패스만 남기고, 규칙이 있는 단계는 일치하는 변형의 DXBC만 LXIUM HLSL 컴파일 결과(`d3dcompiler_47`, O3)로 바꿈. 서브프로그램 구조(버전 202012090, 종류, 통계, 키워드, 코드 = 길이 + Unity 헤더 38바이트 + DXBC)와 블롭 표 구조는 마법소녀의 마녀재판 도구와 같음 [관찰]
+3. 세피리아에는 에셋 번들이 없어 그릇으로 쓸 게임 번들이 없음 → 이 저장소 `LXIUM_mahosaba/res/lxium_mahosaba.bundle`(6000.0.48f1, 셰이더·AssetBundle 객체만 있음)을 그릇으로 빌려 엔진 버전을 6000.3.21f1로, 타입 트리를 TPK 6000.3.21f1 것으로 바꿈. TPK 노드에 없는 값은 에디터 번들과 같은 규칙(배열 `m_TypeFlags` 1, 그 밖 0, `m_RefTypeHash` 0)으로 채움
+4. 타입 해시: Shader는 게임 파일의 해시(`57f0dd2d…`)를 넣어 엔진이 같은 구조로 보게 하고, AssetBundle은 0으로 비워 타입 트리로 읽게 함 [추론: 해시가 다르면 엔진이 타입 트리 변환 경로를 씀]
+5. 결과 `res/lxium_sephiria.bundle`(17.7 KB)을 DLL에 넣음. 실행 중 `AssetBundle.LoadFromMemory` → `LoadAllAssets<Shader>` → `DontUnloadUnusedAsset`. 내부 파일 `CAB-<md5("LXIUM_sephiria")>`
+6. 다시 읽기 확인: UnityPy로 번들을 다시 열어 셰이더 이름·변형 수·컨테이너 확인, 픽셀 코드 디스어셈블(`ps_5_0`, `CB0[139]`, `s0`, `t0`, 입력 `v1.xy`) [관찰]. 게임 로드는 [미확인]
+
+**C1이 들어가는 자리**: URP FSR 경로 = 입력 준비(`Scaling Setup`) → `PostProcessMaterialLibrary.easu` 재질로 `Blitter.BlitTexture` → `FinalPost`의 RCAS 선명화 [관찰: `PostProcessPassRenderGraph.RenderFinalFSRScale`]. EASU 셰이더(`Hidden/Universal Render Pipeline/Edge Adaptive Spatial Upsampling`)는 변형 1개, 바인딩 `_BlitTexture` t0 + 인라인 선형 클램프 샘플러 s0 + `$Globals` b0(`_ScreenParams` 368, `_FsrEasuConstants0~3` 2192~2240) [관찰]. 같은 바인딩으로 픽셀 코드만 바꾸면 그 재질의 `shader`만 바꿔 URP가 우리 확대를 쓰고, 뒤의 RCAS가 적응형 선명화가 됨 (Spatial Resolution 힌트의 "적응형 선명화 + 업스케일"을 픽셀 아트용으로)
+
+| ID | 셰이더 | 내용 | 쓰는 곳 | 상태 |
+|---|---|---|---|---|
+| C1 | `LXIUM/TexelUpscale` | 선명 쌍선형: 입력 픽셀 좌표 = `uv / con1.xy`, 가장 가까운 텍셀 경계 주변 출력 1픽셀 폭만 보간(`clamp((x - 경계) / con0.x, ±0.5)`), 나머지는 텍셀 색 그대로. 텍스처 읽기 1회 (EASU는 12회) | A2를 `Upscale = Texel`로 (FSR 필터 + EASU 재질 셰이더 교체), 이후 B1·B2 | 구현 0.2.0, 게임 확인 [미확인] |
+| C2 | `LXIUM/SpriteLitLite` | `Sprite-Lit-Default`(3패스)에서 실제로 쓰는 블렌드 스타일·마스크 채널만 남긴 판 | 대부분의 월드 스프라이트 (probe 셰이더 수 확인 후) | 후보 |
+| C3 | `LXIUM/OverlayFused` | 안개 노이즈 + 분위기 색 + 비·눈 스크롤을 한 패스로 | B4 | 후보 |
+| C4 | `LXIUM/Deferred2D` | 정적 층 알베도 × 조명 텍스처 (블렌드 스타일 합성 규칙은 URP 2D와 같게) | B3 | 후보 |
+| C5 | `LXIUM/LightLite` | 점 조명을 텍셀 해상도에서 한 번에 누적 (쿠키 포함). 원본 `Hidden/Light2D`는 변형이 많은 큰 셰이더(블롭 106 KB) [관찰] | B5 또는 B1의 조명 단계 | 후보 |
+
+- 셰이더를 더 넣으려면 `SHADERS`에 항목을 더함. 그릇 번들의 셰이더 자리가 2개라 3개부터는 객체 복제를 추가해야 함 (코드에 표시)
 
 ### 채택하지 않는 것
 
@@ -64,7 +77,7 @@
 | Async (엔티티 병렬 처리) 그대로 | 게임 로직이 Unity API·Mirror 네트워크를 메인 스레드에서 씀. 렌더 스레드는 이미 분리(`gfx-threading-mode=6`) [관찰]. B6으로 대신 |
 | MSAA 끄기 | 이미 꺼져 있음 [관찰] |
 
-## 3. 검증 절차 (0.1.0 계측)
+## 3. 검증 절차 (0.1.0부터 계측)
 
 게임 폴더 `AddOns/LXIUM_sephiria/` 아래에 남음.
 
@@ -85,12 +98,12 @@
 | `ProbeKey` / `LabKey` | `F9` / `F10` | InputSystem `Key` 이름. 빈 값 = 끔 |
 | `AutoProbe` | true | 장면 로드 3초 뒤 덤프 |
 | `StatsIntervalSec` | 10 | 프레임 통계 간격. 0 = 끔 |
-| `Render` | 모두 게임 값 | 시작할 때 적용하는 렌더 설정 (`LightScale`, `RenderScale`, `Upscale`). 0 이하·빈 값 = 게임 값 |
+| `Render` | 모두 게임 값 | 시작할 때 적용하는 렌더 설정. `LightScale`, `RenderScale`(0 이하 = 게임 값), `Upscale`(빈 값 = 게임 값, `Auto`·`Linear`·`Point`·`FSR`·`STP`·`Texel`), `Sharpness`(RCAS 0~1, 음수 = 게임 값) |
 | `LabWarmupSec` / `LabMeasureSec` | 2 / 6 | 비교 예열·측정 시간 |
-| `LabPresets` | game, light0.5, light0.25, scale0.75(Point), scale0.5(Point), scale0.5fsr, game2 | 비교할 설정 목록 |
+| `LabPresets` | game, light0.5, light0.25, point0.5, fsr0.5, texel0.5(선명화 0), texel0.5rcas(게임 선명화), texel0.75, game2 | 비교할 설정 목록 (약 75초). 0.1.0에서 만든 settings.json은 목록이 예전 것이라 지우면 새 기본값으로 다시 만들어짐 |
 
 ## 5. 다음 단계
 
-1. 0.1.0을 위 장면들에서 실행 → probe·lab·frame 로그 수집
-2. 병목에 따라: GPU면 A1·A2 기본값 결정 → B1(+C1) → B2 / CPU면 B6·B7·A3
-3. 셰이더(C)는 UnityPy 설치 승인 후, 원본 셰이더 객체 구조부터 확인
+1. 0.2.0을 위 장면들에서 실행 → `shader 'LXIUM/TexelUpscale' supported=True` 로그와 lab의 texel 스크린샷으로 C1 확인, probe·lab·frame 로그 수집
+2. 병목에 따라: GPU면 A1·A2(+C1) 기본값 결정 → B1 → B2 / CPU면 B6·B7·A3
+3. C2 이후 셰이더는 같은 도구로 (원본 셰이더의 변형·바인딩부터 디스어셈블로 확인)

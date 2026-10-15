@@ -22,6 +22,7 @@ namespace LXIUM_sephiria
             Frame.Install();
             Debug.Log($"[LXIUM] {typeof(Entry).Assembly.GetName().Version.ToString(3)} loaded; {Probe.Environment()}");
             Debug.Log("[LXIUM] loop phases: " + string.Join(",", Frame.PhaseNames));
+            Shaders.Load();
             Debug.Log("[LXIUM] render " + Render.Apply(settings.Render));
             host = new GameObject("LXIUM_sephiria") { hideFlags = HideFlags.HideAndDontSave };
             Object.DontDestroyOnLoad(host);

@@ -21,7 +21,8 @@ namespace LXIUM_sephiria
         static UniversalRenderPipelineAsset asset;
         static Renderer2DData[] datas = Array.Empty<Renderer2DData>();
         static float[] gameLight = Array.Empty<float>();
-        static float gameScale;
+        static float gameScale, gameSharpness;
+        static bool gameOverride;
         static UpscalingFilterSelection gameFilter;
 
         public static UniversalRenderPipelineAsset Asset => Find() ? asset : null;
@@ -37,6 +38,8 @@ namespace LXIUM_sephiria
             gameLight = Array.ConvertAll(datas, d => d != null && LightScale != null ? (float)LightScale.GetValue(d) : 1f);
             gameScale = asset.renderScale;
             gameFilter = asset.upscalingFilter;
+            gameOverride = asset.fsrOverrideSharpness;
+            gameSharpness = asset.fsrSharpness;
             return true;
         }
 
@@ -45,15 +48,39 @@ namespace LXIUM_sephiria
             if (!Find()) return "URP 에셋 없음, 적용 안 함";
             asset.renderScale = p.RenderScale > 0 ? p.RenderScale : gameScale;
             var filter = gameFilter;
-            if (p.Upscale.Length > 0 && !Enum.TryParse(p.Upscale, true, out filter))
+            bool texel = string.Equals(p.Upscale, "Texel", StringComparison.OrdinalIgnoreCase) && Shaders.TexelUpscale;
+            if (texel) filter = UpscalingFilterSelection.FSR;
+            else if (p.Upscale.Length > 0 && !Enum.TryParse(p.Upscale, true, out filter))
             {
-                Debug.LogWarning($"[LXIUM] 업스케일 필터 '{p.Upscale}' 모름 (Auto, Linear, Point, FSR, STP). 게임 값 사용");
+                Debug.LogWarning($"[LXIUM] 업스케일 필터 '{p.Upscale}' 모름 (Auto, Linear, Point, FSR, STP, Texel) 또는 셰이더 없음. 게임 값 사용");
                 filter = gameFilter;
             }
             asset.upscalingFilter = filter;
+            SwapEasu(texel);
+            asset.fsrOverrideSharpness = p.Sharpness >= 0 || gameOverride;
+            asset.fsrSharpness = p.Sharpness >= 0 ? p.Sharpness : gameSharpness;
             for (int i = 0; i < datas.Length; i++)
                 if (datas[i] != null && LightScale != null) LightScale.SetValue(datas[i], p.LightScale > 0 ? p.LightScale : gameLight[i]);
             return p.ToString();
+        }
+
+        const string EasuName = "Hidden/Universal Render Pipeline/Edge Adaptive Spatial Upsampling";
+        static Shader easu;
+
+        /// <summary>
+        /// URP FSR 경로의 확대 재질(PostProcessMaterialLibrary.easu)의 셰이더를 LXIUM/TexelUpscale로 바꾸거나 되돌린다.
+        /// 바인딩이 같아 URP의 나머지(입력 준비, RCAS 선명화)는 그대로 돈다. 재질은 렌더러가 다시 만들어지면 새로 생기므로 적용할 때마다 찾는다.
+        /// </summary>
+        static void SwapEasu(bool texel)
+        {
+            var target = texel ? Shaders.TexelUpscale : easu;
+            if (target == null) return;
+            foreach (var m in Resources.FindObjectsOfTypeAll<Material>())
+            {
+                if (m == null || m.shader == null) continue;
+                if (m.shader.name == EasuName) easu = m.shader;
+                if (m.shader.name == EasuName || m.shader == Shaders.TexelUpscale) m.shader = target;
+            }
         }
     }
 
