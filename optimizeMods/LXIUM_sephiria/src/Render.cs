@@ -22,7 +22,7 @@ namespace LXIUM_sephiria
         static Renderer2DData[] datas = Array.Empty<Renderer2DData>();
         static float[] gameLight = Array.Empty<float>();
         static float gameScale, gameSharpness;
-        static bool gameOverride;
+        static bool gameOverride, gameSrp, gameDynamic;
         static UpscalingFilterSelection gameFilter;
 
         public static UniversalRenderPipelineAsset Asset => Find() ? asset : null;
@@ -40,6 +40,8 @@ namespace LXIUM_sephiria
             gameFilter = asset.upscalingFilter;
             gameOverride = asset.fsrOverrideSharpness;
             gameSharpness = asset.fsrSharpness;
+            gameSrp = GraphicsSettings.useScriptableRenderPipelineBatching;
+            gameDynamic = asset.supportsDynamicBatching;
             return true;
         }
 
@@ -69,6 +71,9 @@ namespace LXIUM_sephiria
             asset.fsrSharpness = sharp >= 0 ? sharp : gameSharpness;
             for (int i = 0; i < datas.Length; i++)
                 if (datas[i] != null && LightScale != null) LightScale.SetValue(datas[i], p.LightScale > 0 ? p.LightScale : gameLight[i]);
+            // URP는 SRP Batcher를 파이프라인 생성 때 GraphicsSettings에 넣고, 동적 배칭은 매 프레임 에셋에서 읽음
+            GraphicsSettings.useScriptableRenderPipelineBatching = p.SrpBatcher >= 0 ? p.SrpBatcher == 1 : gameSrp;
+            asset.supportsDynamicBatching = p.DynamicBatching >= 0 ? p.DynamicBatching == 1 : gameDynamic;
             return p + $" → scale {asset.renderScale:0.##}";
         }
 

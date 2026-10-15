@@ -162,7 +162,30 @@
 - 스크립트는 형식 하나가 큰 게 아니라 작은 것이 많음. 가장 큰 `Animator2D_SpriteRenderer`도 0.2 ms
 - 패치 전후 스크린샷이 같아 측정 패치가 그림을 바꾸지 않음 [관찰]
 
-### 화면이 안 보인다는 보고 (2026-10-15, 재현 안 됨)
+### CPU 내역 6~8차 (0.6.0, 같은 전투 방, PC가 5차보다 느린 상태: 원래 약 120 fps)
+
+- 6차 (URP 안쪽): `RenderSingleCamera` 3.29 ms 중 `RecordAndExecuteRenderGraph` 0.81 ms(기록 0.37 + 실행 0.39), `UpdateVolumeFramework` 0.04, `Light2DCullResult.SetupCulling` 0.03, `LayerUtility.CalculateBatches` 0.03 → **약 2.4 ms는 그 밖의 네이티브 작업(컬링 `Cull`·그리기 제출 `Submit`)** [관찰·추론]. draw 150, SetPass 143 → 그리기마다 거의 셰이더·재질이 바뀜 [관찰]
+- 측정 중 크래시: `ScriptableRenderContext.Cull/Submit/ExecuteCommandBuffer`(구조체·네이티브 감싸기)를 Harmony로 감싸자 게임이 죽음 [관찰: Crash!!!]. 0.6.0부터 Profile이 구조체 메서드·내부 호출은 건너뜀
+- 7·8차 (배칭 설정, Texel 0.5 위, 8초씩):
+
+| 프리셋 | fps (7차) | fps (8차, 번갈아 3번) | p99 ms (8차) |
+|---|---|---|---|
+| 기본 (SRP Batcher 켬, 동적 배칭 끔) | 114.1 / 113.5 | 122.2 / 112.9 / 121.7 | 15.6 / 16.5 / 12.4 |
+| SRP Batcher 끔 | 122.1 | 123.1 / 119.9 / 121.4 | 11.5 / 12.4 / 11.7 |
+| 동적 배칭 켬 | 120.2 | — | — |
+| 둘 다 | 119.7 | — | — |
+
+- SRP Batcher 끄기: 평균 fps +2% 안팎(흔들림 수준), 프레임 튐(p99)은 꾸준히 작아짐. 그리기마다 셰이더가 바뀌어 SRP Batcher가 이득 없이 자기 비용만 내는 것으로 보임 [추론]. 큰 레버는 아님
+- 스크립트 큰 것(감싸는 비용 포함): `Animator2D_SpriteRenderer` 0.28 (136회), `EventSystem` 0.23, Mirror `NetworkTransformReliable` 0.30 (104회, 갱신 0.08 + 늦은 갱신 0.22), `TopdownRigidbody` 0.14, `BreakableProp` 0.15, `FireSpark` 0.09, `Shadow` 0.08, CustomSkinMod(다른 모드) 0.15
+- Mirror 동기화 건너뛰기는 하지 않음: 혼자일 때 빼도 나중에 들어온 플레이어와 어긋날 수 있음 (모드 호환성 원칙) [추론]
+- 결론: CPU 비용이 고르게 퍼져 있어 하나를 고쳐 크게 줄일 곳은 없음. 가장 큰 덩어리(렌더 약 3.5 ms)를 통째로 줄이는 방법은 B2(월드 반 프레임 + 이동 재투영)
+
+### 화면이 안 보인다는 보고 (2026-10-15, 해결: 버그 아님)
+
+- 실제 화면 확인 (컴퓨터 조작으로 게임 창 캡처, 같은 전투 방): game / texel0.5 / texelx2 / texelx3 / texelx2+light0.5 / game2 → 게임 창 평균 밝기 37.9 / 37.8 / 37.8 / 37.9 / 37.8 / 37.9 [관찰]. 이 방은 원래 어두운 방
+- 타이틀 3초 뒤가 어두운 것은 타이틀 조명이 켜지는 연출. 사용자가 원래 렌더로 켠 실행(17:54·17:57·17:58)도 3초 뒤 밝기 83~101 (다 켜지면 186) [관찰]
+
+### 화면이 안 보인다는 보고 (첫 확인 기록)
 
 사용자: "라이트가 줄어드니까 메인화면이 아무것도 안 보이고 맵도 안 보임" (자동 측정을 원격 화면으로 보던 중). 확인한 것 [관찰]:
 - 타이틀: 같은 시각에 game·texel0.5를 각각 4장 → 평균 밝기 186.0 / 184.3, 그림 같음. 장면 로드 3초 뒤는 타이틀 자체의 조명이 켜지는 중이라 어두움 (두 경우 모두)
@@ -179,6 +202,7 @@
 | `StatsIntervalSec` | 10 | 프레임 통계 간격. 0 = 끔 |
 | `Render` | `texel0.5` (`RenderScale` 0.5, `Upscale` Texel) — 0.4.0부터 | 시작할 때 적용하는 렌더 설정. `LightScale`, `RenderScale`(0 이하 = 게임 값), `TexelMultiple`(0보다 크면 `RenderScale` 대신 아트 텍셀 × k 자동, `Upscale` 비면 Texel), `Upscale`(빈 값 = 게임 값, `Auto`·`Linear`·`Point`·`FSR`·`STP`·`Texel`), `Sharpness`(FSR의 RCAS 0~1, 음수 = 게임 값, Texel은 늘 0). 원래 게임으로는 `{"Name": "game"}` |
 | `ArtPPU` | 16 | `TexelMultiple`이 쓰는 아트 PPU |
+| `Render.SrpBatcher` / `Render.DynamicBatching` | -1 / -1 (게임 값: 켬 / 끔) | 0 끔, 1 켬. 0.6.0. 실측은 3장 7·8차 |
 | `AutoStartSec` | 0 (끔) | 타이틀 로드 n초 뒤 `UI_TitleLobby.NetworkHost()`("게임 시작" 버튼과 같음, 선택된 세이브로 호스트 시작). 장면이 안 바뀌면 10초마다 최대 3번 |
 | `AutoLabSec` / `AutoLabScene` | 0 (끔) / `MainWorld` | 그 장면 로드 n초 뒤 비교 실행 (실행마다 한 번) |
 | `QuitAfterLab` | false | 자동 비교(와 `AutoProfile`)가 끝나면 `Application.Quit()` |

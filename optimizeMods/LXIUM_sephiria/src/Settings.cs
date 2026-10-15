@@ -14,11 +14,14 @@ namespace LXIUM_sephiria
         public string Upscale = ""; // URP 업스케일 필터: Auto, Linear, Point, FSR, STP, 또는 Texel (LXIUM 픽셀 아트 확대)
         public float Sharpness = -1; // FSR 뒤 RCAS 적응형 선명화 0~1. 0 = 끔, 음수 = 게임 값. Texel은 늘 0
         public float TexelMultiple;  // 0보다 크면 RenderScale 대신 "아트 텍셀 줄 수 × k"로 자동 (Upscale 비면 Texel)
+        public int SrpBatcher = -1;      // SRP Batcher 0 끔 / 1 켬 / 음수 게임 값 (게임 켬)
+        public int DynamicBatching = -1; // 동적 배칭 0 끔 / 1 켬 / 음수 게임 값 (게임 끔)
 
         public override string ToString() =>
             $"{Name}(light={(LightScale > 0 ? LightScale.ToString("0.###") : "game")} " +
             $"scale={(TexelMultiple > 0 ? "texel x" + TexelMultiple.ToString("0.##") : RenderScale > 0 ? RenderScale.ToString("0.###") : "game")} " +
-            $"upscale={(Upscale.Length > 0 ? Upscale : TexelMultiple > 0 ? "Texel" : "game")} sharp={(Sharpness >= 0 ? Sharpness.ToString("0.##") : "game")})";
+            $"upscale={(Upscale.Length > 0 ? Upscale : TexelMultiple > 0 ? "Texel" : "game")} sharp={(Sharpness >= 0 ? Sharpness.ToString("0.##") : "game")}" +
+            (SrpBatcher >= 0 ? $" srp={SrpBatcher}" : "") + (DynamicBatching >= 0 ? $" dyn={DynamicBatching}" : "") + ")";
     }
 
     /// <summary>
@@ -43,6 +46,10 @@ namespace LXIUM_sephiria
         {
             "UnityEngine.Rendering.Universal.UniversalRenderPipeline:Render",
             "UnityEngine.Rendering.Universal.UniversalRenderPipeline:RenderSingleCamera",
+            "UnityEngine.Rendering.Universal.UniversalRenderPipeline:RecordAndExecuteRenderGraph",
+            "UnityEngine.Rendering.Universal.UniversalRenderPipeline:UpdateVolumeFramework",
+            "UnityEngine.Rendering.Universal.Renderer2D:SetupCulling",
+            "UnityEngine.Rendering.Universal.Light2DCullResult:SetupCulling",
             "UnityEngine.Rendering.Universal.Renderer2D:OnRecordRenderGraph",
             "UnityEngine.Rendering.Universal.LayerUtility:CalculateBatches",
             "UnityEngine.Rendering.RenderGraphModule.RenderGraph:BeginRecording",

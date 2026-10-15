@@ -104,7 +104,7 @@ namespace LXIUM_sephiria
                     foreach (var name in Callbacks)
                     {
                         var m = t.GetMethod(name, BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
-                        if (m == null || m.IsAbstract) continue;
+                        if (m == null || m.IsAbstract || (m.GetMethodImplementationFlags() & MethodImplAttributes.InternalCall) != 0) continue;
                         try { h.Patch(m, pre, postScript); patched++; }
                         catch { failed++; }
                     }
@@ -119,6 +119,12 @@ namespace LXIUM_sephiria
                 if (methods == null || methods.Length == 0) { report.AppendLine("# 못 찾음: " + spec); continue; }
                 foreach (var m in methods)
                 {
+                    // 구조체 메서드·네이티브 내부 호출을 감싸면 게임이 죽음 (2026-10-15, ScriptableRenderContext.Cull 등)
+                    if (m.DeclaringType.IsValueType || (m.GetMethodImplementationFlags() & MethodImplAttributes.InternalCall) != 0)
+                    {
+                        report.AppendLine("# 건너뜀(구조체·내부 호출): " + spec);
+                        continue;
+                    }
                     try { h.Patch(m, pre, postMethod); patched++; }
                     catch (Exception e) { failed++; report.AppendLine($"# 패치 실패: {spec} {e.GetType().Name}"); }
                 }
