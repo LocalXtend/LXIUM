@@ -25,8 +25,8 @@
 
 | ID | 이름 | 방법 | 화면 변화 | 상태 |
 |---|---|---|---|---|
-| A1 | 조명 텍스처 배율 | `Renderer2DData.m_LightRenderTextureScale` (반사로 씀. 매 프레임 `CreateResources`가 읽어 바로 적용 [관찰]) | 조명 경계가 부드러워짐. 쿠키(픽셀 아트 조명) 경계가 흐려질 수 있음 [추론] | 구현 0.1.0 `LightScale`, lab 비교 |
-| A2 | 월드 렌더 배율 | URP `renderScale` + `upscalingFilter`(Point·FSR 등). 화면 공간 오버레이 UI는 영향 없음 [추론] | Point: 픽셀이 굵어짐, FSR: 픽셀 아트가 뭉개질 수 있음 | 구현 0.1.0 `RenderScale`/`Upscale`, lab 비교 |
+| A1 | 조명 텍스처 배율 | `Renderer2DData.m_LightRenderTextureScale` (반사로 씀. 매 프레임 `CreateResources`가 읽어 바로 적용 [관찰]) | 화면 평균 밝기 같음 [관찰] | 구현 0.1.0 `LightScale`. 0.5: +4~8% (3차 123 vs 114~119 fps) |
+| A2 | 월드 렌더 배율 | URP `renderScale` + `upscalingFilter`. 화면 공간 오버레이 HUD는 원래 해상도 [관찰: 스크린샷] | URP `Point`는 실제로는 흐림(쌍선형처럼 보임), `FSR`은 픽셀 모서리가 둥글어짐 [관찰: 3배 확대] | 구현 0.1.0. Point 0.5: 151 fps, FSR 0.5: 128 fps |
 | A3 | 볼륨 갱신 줄이기 | `volumeFrameworkUpdateMode = ViaScripting` + 프로필·가중치가 바뀔 때만 `VolumeManager.Update` | 없음 (바뀜 감지가 맞으면) | 후보. 볼륨 수·CPU 비중 확인 후 |
 | A4 | 블룸 가볍게 | 볼륨 Bloom의 `downscale`(Half → Quarter), `maxIterations` 줄이기 | 번짐 범위가 약간 달라짐 | 후보. probe로 블룸 값 확인 후 |
 
@@ -56,13 +56,15 @@
 3. 세피리아에는 에셋 번들이 없어 그릇으로 쓸 게임 번들이 없음 → 이 저장소 `LXIUM_mahosaba/res/lxium_mahosaba.bundle`(6000.0.48f1, 셰이더·AssetBundle 객체만 있음)을 그릇으로 빌려 엔진 버전을 6000.3.21f1로, 타입 트리를 TPK 6000.3.21f1 것으로 바꿈. TPK 노드에 없는 값은 에디터 번들과 같은 규칙(배열 `m_TypeFlags` 1, 그 밖 0, `m_RefTypeHash` 0)으로 채움
 4. 타입 해시: Shader는 게임 파일의 해시(`57f0dd2d…`)를 넣어 엔진이 같은 구조로 보게 하고, AssetBundle은 0으로 비워 타입 트리로 읽게 함 [추론: 해시가 다르면 엔진이 타입 트리 변환 경로를 씀]
 5. 결과 `res/lxium_sephiria.bundle`(17.7 KB)을 DLL에 넣음. 실행 중 `AssetBundle.LoadFromMemory` → `LoadAllAssets<Shader>` → `DontUnloadUnusedAsset`. 내부 파일 `CAB-<md5("LXIUM_sephiria")>`
-6. 다시 읽기 확인: UnityPy로 번들을 다시 열어 셰이더 이름·변형 수·컨테이너 확인, 픽셀 코드 디스어셈블(`ps_5_0`, `CB0[139]`, `s0`, `t0`, 입력 `v1.xy`) [관찰]. 게임 로드는 [미확인]
+6. 다시 읽기 확인: UnityPy로 번들을 다시 열어 셰이더 이름·변형 수·컨테이너 확인, 픽셀 코드 디스어셈블(`ps_5_0`, `CB0[139]`, `s0`, `t0`, 입력 `v1.xy`) [관찰]. 게임 로드: `shader 'LXIUM/TexelUpscale' supported=True passes=1` [관찰: Player.log, 0.3.0]
 
-**C1이 들어가는 자리**: URP FSR 경로 = 입력 준비(`Scaling Setup`) → `PostProcessMaterialLibrary.easu` 재질로 `Blitter.BlitTexture` → `FinalPost`의 RCAS 선명화 [관찰: `PostProcessPassRenderGraph.RenderFinalFSRScale`]. EASU 셰이더(`Hidden/Universal Render Pipeline/Edge Adaptive Spatial Upsampling`)는 변형 1개, 바인딩 `_BlitTexture` t0 + 인라인 선형 클램프 샘플러 s0 + `$Globals` b0(`_ScreenParams` 368, `_FsrEasuConstants0~3` 2192~2240) [관찰]. 같은 바인딩으로 픽셀 코드만 바꾸면 그 재질의 `shader`만 바꿔 URP가 우리 확대를 쓰고, 뒤의 RCAS가 적응형 선명화가 됨 (Spatial Resolution 힌트의 "적응형 선명화 + 업스케일"을 픽셀 아트용으로)
+**C1이 들어가는 자리**: URP FSR 경로 = 입력 준비(`Scaling Setup`, FSR이면 늘 `_GAMMA_20`) → `PostProcessMaterialLibrary.easu` 재질로 `Blitter.BlitTexture` → `FinalPost`(선명도 > 0일 때만 `_RCAS`) [관찰: `PostProcessPassRenderGraph.RenderFinalSetup`·`RenderFinalFSRScale`·`RenderFinalBlit`]. EASU 셰이더(`Hidden/Universal Render Pipeline/Edge Adaptive Spatial Upsampling`)는 변형 1개, 바인딩 `_BlitTexture` t0 + 인라인 선형 클램프 샘플러 s0 + `$Globals` b0(`_ScreenParams` 368, `_FsrEasuConstants0~3` 2192~2240), 끝에서 sRGB→선형 변환 + 알파 1 [관찰: 디스어셈블]. 같은 바인딩으로 픽셀 코드만 바꾸면 그 재질의 `shader`만 바꿔 URP가 우리 확대를 씀
+
+**RCAS와 같이 못 쓰는 이유** (0.3.1~0.3.2에서 측정): 우리 셰이더가 색을 그대로 넘기면 RCAS 경로에서 화면이 2.6배 밝아지고(중앙 평균 112 vs 42), 원본처럼 sRGB→선형을 하면 RCAS 없는 경로에서 6배 어두워짐(6 vs 42) [관찰: 스크린샷 평균]. 이 단계 뒤가 기대하는 부호화가 `_RCAS` 유무로 다르고, 셰이더는 그걸 알 수 없음. 그래서 `Texel`은 선명도를 0으로 고정(RCAS 없는 경로)하고 색을 그대로 넘김 → 밝기 같음 [관찰]. 선명화가 필요하면 C1 안에 직접 넣음
 
 | ID | 셰이더 | 내용 | 쓰는 곳 | 상태 |
 |---|---|---|---|---|
-| C1 | `LXIUM/TexelUpscale` | 선명 쌍선형: 입력 픽셀 좌표 = `uv / con1.xy`, 가장 가까운 텍셀 경계 주변 출력 1픽셀 폭만 보간(`clamp((x - 경계) / con0.x, ±0.5)`), 나머지는 텍셀 색 그대로. 텍스처 읽기 1회 (EASU는 12회) | A2를 `Upscale = Texel`로 (FSR 필터 + EASU 재질 셰이더 교체), 이후 B1·B2 | 구현 0.2.0, 게임 확인 [미확인] |
+| C1 | `LXIUM/TexelUpscale` | 선명 쌍선형: 입력 픽셀 좌표 = `uv / con1.xy`, 가장 가까운 텍셀 경계 주변 출력 1픽셀 폭만 보간(`clamp((x - 경계) / con0.x, ±0.5)`), 나머지는 텍셀 색 그대로. 텍스처 읽기 1회 (EASU는 12회) | A2를 `Upscale = Texel`로 (FSR 필터 + EASU 재질 셰이더 교체, 선명도 0), 이후 B1·B2 | 구현 0.2.0, 0.3.2에서 확인: 0.5 배율 145.7 fps(+25%, 1% low 104 = 가장 고름), 0.36 배율 151.7 fps(+30%). 3배 확대에서 원본과 거의 같은 또렷함 [관찰] |
 | C2 | `LXIUM/SpriteLitLite` | `Sprite-Lit-Default`(3패스)에서 실제로 쓰는 블렌드 스타일·마스크 채널만 남긴 판 | 대부분의 월드 스프라이트 (probe 셰이더 수 확인 후) | 후보 |
 | C3 | `LXIUM/OverlayFused` | 안개 노이즈 + 분위기 색 + 비·눈 스크롤을 한 패스로 | B4 | 후보 |
 | C4 | `LXIUM/Deferred2D` | 정적 층 알베도 × 조명 텍스처 (블렌드 스타일 합성 규칙은 URP 2D와 같게) | B3 | 후보 |
@@ -91,7 +93,37 @@
 - 비교는 같은 자리에 가만히 서서 (카메라가 움직이지 않게) 한다. 프리셋 `game`과 `game2`(같은 설정 반복)의 차이가 측정 흔들림
 - 진단에 쓸 장면: 타이틀, 마을(MainWorld), 던전 일반 전투, 보스, 날씨(비·눈)
 
-## 4. 설정 (`AddOns/LXIUM_sephiria/settings.json`, 실행 중 생성)
+### 자동 측정 (0.3.0)
+
+게임 내장 로더는 게임에 들어갈 때 모드를 불러서 타이틀을 못 본다. MelonLoader 변형은 시작 직후(`OnLateInitializeMelon`) 불리므로 타이틀부터 돌고, 아래 `Auto*` 설정으로 사람 없이 "타이틀 → 게임 시작 → 세이브 위치 → 비교 → 종료"를 한 번에 한다. 측정할 때만 개발 PC의 `UserData/LXIUM_sephiria/settings.json`에 `AutoStartSec 6, AutoLabSec 20, QuitAfterLab true`를 넣고, 끝나면 0·false로 되돌림. 던전 이동은 자동으로 못 함 (개발자 명령창은 치트라 세이브를 바꿔 쓰지 않음). 원격 화면(RustDesk 등)으로 보는 중에는 측정이 흔들리므로 보지 않을 때 돌림
+
+### 측정 기록
+
+| 차수 | 버전 | 결과 [관찰] |
+|---|---|---|
+| 1차 | 0.3.0 | 원격 화면으로 보는 중이라 무효. texel+RCAS 화면이 밝게 뜨는 문제 발견 |
+| 2차 | 0.3.1 | 기본 프리셋 9개 (settings.json의 목록이 안 읽혀서 — JsonUtility 문제, 0.3.2에서 고침). texel 0.5 145 fps. RCAS 없는 texel이 어두워짐 발견 |
+| 3차 | 0.3.2 | 아래 표. 밝기 모두 같음 |
+
+3차 (전투 방 `Moleland_HardBattle_2_Jail`, 1437x1000 창, Iris Xe, 2초 예열 + 8초 측정):
+
+| 프리셋 | fps | 1% low | p50 ms | Update | PostLateUpdate | TimeUpdate |
+|---|---|---|---|---|---|---|
+| game / game2 | 113.9 / 119.3 | 66 / 81 | 8.41 / 8.32 | 2.50 / 2.36 | 4.10 / 4.01 | 0.80 / 0.74 |
+| light0.5 | 123.2 | 79 | 7.99 | 2.21 | 3.92 | 0.73 |
+| point0.5 | 150.8 | 100 | 6.58 | 1.72 | 3.23 | 0.45 |
+| fsr0.5 (RCAS 0.92) | 128.1 | 74 | 7.47 | 2.28 | 3.60 | 0.65 |
+| texel0.5 | 145.7 | 104 | 6.85 | 1.74 | 3.32 | 0.46 |
+| texel0.36 (아트 텍셀 ×2) | 151.7 | 107 | 6.53 | 1.79 | 3.17 | 0.41 |
+| point0.36 | 160.8 | 114 | 6.12 | 1.65 | 3.06 | 0.38 |
+| texel0.54 (아트 텍셀 ×3) | 137.9 | 75 | 7.03 | 1.84 | 3.48 | 0.50 |
+| texel0.5 + light0.5 | 144.6 | 83 | 6.75 | 1.77 | 3.35 | 0.43 |
+
+- Texel이 Point보다 5~9 fps 느린 것은 FSR 경로의 패스 수(입력 준비 + 확대 + 마지막) 때문 [추론]. Point는 마지막 패스 하나에서 확대. Texel을 마지막 패스(`FinalPost`)에 넣으면 같은 비용이 될 것 [추론]
+- 배율을 낮추면 Update·PostLateUpdate도 줄어듦 → 메인 스레드가 렌더 스레드·GPU를 기다리는 몫이 그 안에 있음 [추론]
+- 0.36 이하에서는 메인 스레드 약 6 ms가 남아 이 PC는 CPU가 먼저 막힘. UHD 620에서는 GPU 몫이 3배 안팎이라 배율 효과가 더 클 것 [추론]
+
+## 4. 설정 (`settings.json`, 실행 중 생성. 내장 로더: `AddOns/LXIUM_sephiria/`, MelonLoader: `UserData/LXIUM_sephiria/`)
 
 | 키 | 기본 | 뜻 |
 |---|---|---|
@@ -99,11 +131,18 @@
 | `AutoProbe` | true | 장면 로드 3초 뒤 덤프 |
 | `StatsIntervalSec` | 10 | 프레임 통계 간격. 0 = 끔 |
 | `Render` | 모두 게임 값 | 시작할 때 적용하는 렌더 설정. `LightScale`, `RenderScale`(0 이하 = 게임 값), `Upscale`(빈 값 = 게임 값, `Auto`·`Linear`·`Point`·`FSR`·`STP`·`Texel`), `Sharpness`(RCAS 0~1, 음수 = 게임 값) |
-| `LabWarmupSec` / `LabMeasureSec` | 2 / 6 | 비교 예열·측정 시간 |
-| `LabPresets` | game, light0.5, light0.25, point0.5, fsr0.5, texel0.5(선명화 0), texel0.5rcas(게임 선명화), texel0.75, game2 | 비교할 설정 목록 (약 75초). 0.1.0에서 만든 settings.json은 목록이 예전 것이라 지우면 새 기본값으로 다시 만들어짐 |
+| `AutoStartSec` | 0 (끔) | 타이틀 로드 n초 뒤 `UI_TitleLobby.NetworkHost()`("게임 시작" 버튼과 같음, 선택된 세이브로 호스트 시작). 장면이 안 바뀌면 10초마다 최대 3번 |
+| `AutoLabSec` / `AutoLabScene` | 0 (끔) / `MainWorld` | 그 장면 로드 n초 뒤 비교 실행 (실행마다 한 번) |
+| `QuitAfterLab` | false | 자동 비교가 끝나면 `Application.Quit()` |
+| `LabWarmupSec` / `LabMeasureSec` | 2 / 8 | 비교 예열·측정 시간 |
+| `LabPresets` | game, light0.5, point0.5, fsr0.5, texel0.5, texel0.36, point0.36, texel0.54, texel0.5light0.5, game2 | 비교할 설정 목록 (약 100초). 파일에 목록이 있으면 그 목록만 씀 |
+
+- 0.3.2부터 Newtonsoft.Json(게임에 든 13.0.0.0)으로 읽고 씀. 0.3.1까지는 Unity `JsonUtility`가 실행 중 불러온 어셈블리의 중첩 클래스(`Render`, `LabPresets`)를 건너뛰어 **사용자의 `Render` 설정이 적용되지 않았음** [관찰: 쓰인 settings.json에 두 항목이 없었음]
 
 ## 5. 다음 단계
 
-1. 0.2.0을 위 장면들에서 실행 → `shader 'LXIUM/TexelUpscale' supported=True` 로그와 lab의 texel 스크린샷으로 C1 확인, probe·lab·frame 로그 수집
-2. 병목에 따라: GPU면 A1·A2(+C1) 기본값 결정 → B1 → B2 / CPU면 B6·B7·A3
-3. C2 이후 셰이더는 같은 도구로 (원본 셰이더의 변형·바인딩부터 디스어셈블로 확인)
+1. 기본 렌더 설정 결정: `Texel` 0.5(또는 아트 텍셀 ×2~3 배율)를 기본으로 할지
+2. B1(텍셀 격자 렌더): 배율을 `k × 직교 높이 × PPU / 화면 높이`로 자동 계산 (1000줄: k=2 → 0.36, k=3 → 0.54)
+3. C1을 `FinalPost` 자리로 옮겨 Point와 같은 패스 수로 (Texel이 Point보다 느린 몫 제거)
+4. 이 PC는 CPU가 먼저 막힘 → PostLateUpdate(렌더 기록·UI) 내역부터 재고 B6·B7·A3
+5. 마을·보스·날씨 장면 측정 (이동이 필요해 사람이 하거나 화면 조작 허용 필요)

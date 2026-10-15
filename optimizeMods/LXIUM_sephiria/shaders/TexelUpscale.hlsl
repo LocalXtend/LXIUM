@@ -19,5 +19,7 @@ float4 frag(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
     float2 outPerIn = 1.0 / _FsrEasuConstants0.xy;        // 입력 텍셀 하나가 덮는 출력 픽셀 수
     float2 seam = floor(inPx + 0.5);                      // 가장 가까운 텍셀 경계
     float2 d = clamp((inPx - seam) * outPerIn, -0.5, 0.5);
-    return _BlitTexture.SampleLevel(sampler_LinearClamp, (seam + d) * _FsrEasuConstants1.xy, 0);
+    // 색은 그대로 넘김. URP는 이 단계 뒤 RCAS(선명도 > 0)가 있을 때와 없을 때 기대하는 부호화가 달라서
+    // (원본 EASU는 RCAS 경로에 맞춰 sRGB→선형을 함), Texel 모드는 RCAS를 끈 경로만 씀 (Render.cs)
+    return float4(_BlitTexture.SampleLevel(sampler_LinearClamp, (seam + d) * _FsrEasuConstants1.xy, 0).rgb, 1.0);
 }

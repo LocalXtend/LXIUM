@@ -57,8 +57,10 @@ namespace LXIUM_sephiria
             }
             asset.upscalingFilter = filter;
             SwapEasu(texel);
-            asset.fsrOverrideSharpness = p.Sharpness >= 0 || gameOverride;
-            asset.fsrSharpness = p.Sharpness >= 0 ? p.Sharpness : gameSharpness;
+            // Texel은 RCAS를 끈 경로 전용 (TexelUpscale.hlsl). 0이면 URP가 _RCAS 키워드를 안 켬
+            float sharp = texel ? 0 : p.Sharpness;
+            asset.fsrOverrideSharpness = sharp >= 0 || gameOverride;
+            asset.fsrSharpness = sharp >= 0 ? sharp : gameSharpness;
             for (int i = 0; i < datas.Length; i++)
                 if (datas[i] != null && LightScale != null) LightScale.SetValue(datas[i], p.LightScale > 0 ? p.LightScale : gameLight[i]);
             return p.ToString();

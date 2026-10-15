@@ -8,19 +8,27 @@ using Object = UnityEngine.Object;
 namespace LXIUM_sephiria
 {
     /// <summary>
-    /// 게임 내장 AddOnLoader가 metadata.json의 entryClass로 만드는 진입점.
-    /// GameDataLoader.Awake 안, 게임 데이터베이스 초기화 전에 불린다.
+    /// 로더와 무관한 시작·정리. 진입점은 게임 내장 AddOnLoader(<see cref="Entry"/>)와 MelonLoader(<see cref="MelonEntry"/>) 둘.
+    /// 두 로더가 다 있으면 먼저 부른 쪽만 돈다 (어셈블리가 따로 로드돼도 AppDomain 표식은 하나).
     /// </summary>
-    public class Entry : HorayModBase
+    public static class Core
     {
-        GameObject host;
+        const string Running = "LXIUM_sephiria.running";
+        static GameObject host;
 
-        protected override void OnModLoaded()
+        /// <param name="dir">settings.json·logs를 둘 폴더</param>
+        public static void Start(string dir, string loader)
         {
-            string dir = Path.GetDirectoryName(typeof(Entry).Assembly.Location);
+            if (AppDomain.CurrentDomain.GetData(Running) is string other)
+            {
+                Debug.Log($"[LXIUM] {loader}: 이미 {other}로 실행 중, 건너뜀");
+                return;
+            }
+            AppDomain.CurrentDomain.SetData(Running, loader);
+            Directory.CreateDirectory(dir);
             var settings = Settings.Load(dir);
             Frame.Install();
-            Debug.Log($"[LXIUM] {typeof(Entry).Assembly.GetName().Version.ToString(3)} loaded; {Probe.Environment()}");
+            Debug.Log($"[LXIUM] {typeof(Core).Assembly.GetName().Version.ToString(3)} loaded by {loader}; {Probe.Environment()}");
             Debug.Log("[LXIUM] loop phases: " + string.Join(",", Frame.PhaseNames));
             Shaders.Load();
             Debug.Log("[LXIUM] render " + Render.Apply(settings.Render));
@@ -29,11 +37,21 @@ namespace LXIUM_sephiria
             host.AddComponent<Driver>().Init(settings, Path.Combine(dir, "logs"));
         }
 
-        protected override void OnModUnloaded()
+        public static void Stop()
         {
             if (host) Object.Destroy(host);
             Frame.Uninstall();
         }
+    }
+
+    /// <summary>
+    /// 게임 내장 AddOnLoader가 metadata.json의 entryClass로 만드는 진입점.
+    /// 타이틀이 아니라 게임에 들어갈 때 GameDataLoader.Awake 안에서 불린다. 설정·로그는 AddOns/LXIUM_sephiria/.
+    /// </summary>
+    public class Entry : HorayModBase
+    {
+        protected override void OnModLoaded() => Core.Start(Path.GetDirectoryName(typeof(Entry).Assembly.Location), "AddOns");
+        protected override void OnModUnloaded() => Core.Stop();
     }
 
     /// <summary>단축키, 장면 전환 덤프, 비교 실행, 주기 통계를 매 프레임 처리한다.</summary>
@@ -43,7 +61,9 @@ namespace LXIUM_sephiria
         string logDir;
         Lab lab;
         Key probeKey, labKey;
-        float nextStats, probeAt = -1;
+        float nextStats, probeAt = -1, autoStartAt = -1, autoLabAt = -1;
+        int autoStartTries;
+        bool autoLabDone, autoLabRunning;
         long statsFrom;
 
         public void Init(Settings s, string dir)
@@ -69,7 +89,14 @@ namespace LXIUM_sephiria
 
         void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            if (settings.AutoProbe) probeAt = Time.realtimeSinceStartup + 3;
+            float now = Time.realtimeSinceStartup;
+            if (settings.AutoProbe) probeAt = now + 3;
+            if (settings.AutoStartSec > 0 && scene.name == "Title")
+            {
+                autoStartAt = now + settings.AutoStartSec;
+                autoStartTries = 0;
+            }
+            if (settings.AutoLabSec > 0 && !autoLabDone && scene.name == settings.AutoLabScene) autoLabAt = now + settings.AutoLabSec;
         }
 
         void Update()
@@ -86,7 +113,19 @@ namespace LXIUM_sephiria
                 probeAt = -1;
                 RunProbe();
             }
+            if (autoStartAt > 0 && now >= autoStartAt) AutoStart(now);
+            if (autoLabAt > 0 && now >= autoLabAt)
+            {
+                autoLabAt = -1;
+                autoLabDone = true;
+                if (!lab.Running) { lab.Toggle(); autoLabRunning = true; }
+            }
             lab.Tick();
+            if (autoLabRunning && !lab.Running)
+            {
+                autoLabRunning = false;
+                if (settings.QuitAfterLab) { Debug.Log("[LXIUM] auto: lab 끝, 게임 종료"); Application.Quit(); }
+            }
             if (lab.Running || settings.StatsIntervalSec <= 0)
             {
                 statsFrom = Frame.Count;
@@ -98,6 +137,16 @@ namespace LXIUM_sephiria
                 statsFrom = Frame.Count;
                 nextStats = now + settings.StatsIntervalSec;
             }
+        }
+
+        /// <summary>타이틀의 "게임 시작" 버튼과 같은 UI_TitleLobby.NetworkHost(): 선택된 세이브로 호스트 시작. 장면이 안 바뀌면 10초마다 최대 3번</summary>
+        void AutoStart(float now)
+        {
+            var lobby = Object.FindAnyObjectByType<UI_TitleLobby>();
+            if (lobby == null || ++autoStartTries > 3) { autoStartAt = -1; return; }
+            Debug.Log($"[LXIUM] auto: 타이틀 게임 시작 ({autoStartTries})");
+            lobby.NetworkHost();
+            autoStartAt = now + 10;
         }
 
         void RunProbe()

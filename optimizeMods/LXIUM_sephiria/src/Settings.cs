@@ -1,46 +1,60 @@
 using System;
 using System.IO;
+using Newtonsoft.Json;
 using UnityEngine;
 
 namespace LXIUM_sephiria
 {
     /// <summary>렌더 설정 한 벌. 0 이하·빈 값은 게임 원래 값.</summary>
-    [Serializable]
     public class RenderPreset
     {
         public string Name = "game";
         public float LightScale;    // Renderer2DData 2D 조명 텍스처 배율 (게임 1)
         public float RenderScale;   // URP 렌더 배율. 화면 공간 오버레이 UI는 영향 없음
         public string Upscale = ""; // URP 업스케일 필터: Auto, Linear, Point, FSR, STP, 또는 Texel (LXIUM 픽셀 아트 확대)
-        public float Sharpness = -1; // FSR·Texel 뒤 RCAS 적응형 선명화 0~1. 0 = 끔, 음수 = 게임 값
+        public float Sharpness = -1; // FSR 뒤 RCAS 적응형 선명화 0~1. 0 = 끔, 음수 = 게임 값. Texel은 늘 0
 
         public override string ToString() =>
             $"{Name}(light={(LightScale > 0 ? LightScale.ToString("0.###") : "game")} scale={(RenderScale > 0 ? RenderScale.ToString("0.###") : "game")} " +
             $"upscale={(Upscale.Length > 0 ? Upscale : "game")} sharp={(Sharpness >= 0 ? Sharpness.ToString("0.##") : "game")})";
     }
 
-    /// <summary>모드 폴더의 settings.json. 없으면 기본값으로 만들고, 있으면 읽은 뒤 새 항목을 채워 다시 쓴다.</summary>
-    [Serializable]
+    /// <summary>
+    /// settings.json. 없으면 기본값으로 만들고, 있으면 읽은 뒤 새 항목을 채워 다시 쓴다.
+    /// Unity JsonUtility는 실행 중 불러온 모드 어셈블리의 중첩 클래스(Render, LabPresets)를 건너뛰어서 게임에 든 Newtonsoft.Json을 쓴다.
+    /// </summary>
     public class Settings
     {
         public string ProbeKey = "F9";        // 렌더 상태 덤프 (InputSystem Key 이름)
         public string LabKey = "F10";         // 렌더 설정 비교 실행 / 중단
         public bool AutoProbe = true;         // 장면이 바뀌면 3초 뒤 덤프
+        // 자동 측정 (MelonLoader로 타이틀부터 돌 때). 0 = 끔
+        public float AutoStartSec;            // 타이틀 로드 n초 뒤 "게임 시작"을 누름
+        public float AutoLabSec;              // AutoLabScene 로드 n초 뒤 비교 실행 (한 번)
+        public string AutoLabScene = "MainWorld";
+        public bool QuitAfterLab;             // 자동 비교가 끝나면 게임 종료
         public float StatsIntervalSec = 10;   // 프레임 통계를 로그에 남기는 간격. 0 = 끔
         public RenderPreset Render = new RenderPreset();
         public float LabWarmupSec = 2;
-        public float LabMeasureSec = 6;
+        public float LabMeasureSec = 8;
         public RenderPreset[] LabPresets =
         {
             new RenderPreset { Name = "game" },
             new RenderPreset { Name = "light0.5", LightScale = 0.5f },
-            new RenderPreset { Name = "light0.25", LightScale = 0.25f },
             new RenderPreset { Name = "point0.5", RenderScale = 0.5f, Upscale = "Point" },
             new RenderPreset { Name = "fsr0.5", RenderScale = 0.5f, Upscale = "FSR" },
-            new RenderPreset { Name = "texel0.5", RenderScale = 0.5f, Upscale = "Texel", Sharpness = 0 },
-            new RenderPreset { Name = "texel0.5rcas", RenderScale = 0.5f, Upscale = "Texel" },
-            new RenderPreset { Name = "texel0.75", RenderScale = 0.75f, Upscale = "Texel", Sharpness = 0 },
+            new RenderPreset { Name = "texel0.5", RenderScale = 0.5f, Upscale = "Texel" },
+            new RenderPreset { Name = "texel0.36", RenderScale = 0.36f, Upscale = "Texel" },
+            new RenderPreset { Name = "point0.36", RenderScale = 0.36f, Upscale = "Point" },
+            new RenderPreset { Name = "texel0.54", RenderScale = 0.54f, Upscale = "Texel" },
+            new RenderPreset { Name = "texel0.5light0.5", LightScale = 0.5f, RenderScale = 0.5f, Upscale = "Texel" },
             new RenderPreset { Name = "game2" },
+        };
+
+        static readonly JsonSerializerSettings Json = new JsonSerializerSettings
+        {
+            ObjectCreationHandling = ObjectCreationHandling.Replace,   // 파일의 목록이 기본 목록을 대신함
+            Formatting = Formatting.Indented,
         };
 
         public static Settings Load(string dir)
@@ -49,7 +63,7 @@ namespace LXIUM_sephiria
             string path = Path.Combine(dir, "settings.json");
             try
             {
-                if (File.Exists(path)) JsonUtility.FromJsonOverwrite(File.ReadAllText(path), s);
+                if (File.Exists(path)) JsonConvert.PopulateObject(File.ReadAllText(path), s, Json);
             }
             catch (Exception e)
             {
@@ -57,7 +71,7 @@ namespace LXIUM_sephiria
                 Debug.LogWarning("[LXIUM] settings.json 읽기 실패, 기본값 사용: " + e.Message);
                 return new Settings();
             }
-            try { File.WriteAllText(path, JsonUtility.ToJson(s, true)); }
+            try { File.WriteAllText(path, JsonConvert.SerializeObject(s, Json)); }
             catch (Exception e) { Debug.LogWarning("[LXIUM] settings.json 쓰기 실패: " + e.Message); }
             return s;
         }

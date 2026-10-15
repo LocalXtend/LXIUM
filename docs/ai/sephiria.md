@@ -103,6 +103,8 @@
 | SendMoney (Taehyun) | 1.0.1 | `AddOnsDisabled/`에 있어 로드 안 됨 | — |
 
 - 모두 입력은 `UnityEngine.InputSystem.Keyboard.current` 사용 [관찰]. LXIUM도 같은 방식, 기본 F9·F10
+- 개발 PC에 MelonLoader 0.7.3 (GitHub 공식 릴리스 `MelonLoader.x64.zip`, sha256 `5b2b2f3d…a416`) 수동 설치: 게임 루트 `version.dll` + `MelonLoader/` (2026-10-15). `UserData/Loader.cfg`·`MelonPreferences.cfg`는 예전 설치가 남긴 것
+- LXIUM 애드온 변형: `melonloader`(`Mods/LXIUM_sephiria.dll`) + `none`(`AddOns/LXIUM_sephiria/`). 같은 DLL. 둘 다 깔려 있으면 먼저 불린 쪽만 돎 (`AppDomain` 표식)
 - 게임 자체 키보드 직접 참조: 방향키, Enter, Esc, Tab, Space, Shift, Ctrl, E, Q, `[` `]` `;` `'` [관찰]. F키는 없음
 
 ## 3. 렌더링 시스템
@@ -183,10 +185,29 @@
 - 이 PC(Iris Xe)에서는 이미 높다. 목표 기기(UHD 620, EU 24개 ≈ Iris Xe의 1/3~1/4)에서는 GPU 비중이 커짐 [추론]
 - 0.1.0부터 단계별 메인 스레드 시간을 같이 기록 (`sephiria-render.md` 3장)
 
-## 5. 아직 모르는 것 (0.1.0 probe로 확인)
+### 4.1 0.3.x 실측 (2026-10-15, MelonLoader 자동 측정, 1437x1000 창, VSync 끔, 제한 없음)
 
-- 실제 플레이 장면의 카메라 수·종류, 직교 크기, 스프라이트 PPU (텍셀 격자 렌더 B1의 배율 결정)
-- 2D 조명 수·종류·대상 레이어, 레이어 배치 수
-- 볼륨 프로필 구성 (블룸 강도·임계값·다운스케일)
-- 캔버스 렌더 모드 (오버레이면 렌더 배율에서 UI가 원래 해상도로 남음)
-- 프레임 시간이 GPU 대기(TimeUpdate)와 스크립트(Update/LateUpdate)·렌더 제출(PostLateUpdate) 중 어디에 쌓이는지
+세이브 위치 그대로 들어간 방(`Moleland_HardBattle_2_Jail`), 캐릭터 정지, 프리셋마다 2초 예열 + 8초 측정 [관찰: 3차, `sephiria-render.md` 3장 표]
+
+| 항목 | 값 [관찰] |
+|---|---|
+| 카메라 | `Main Camera` 하나, 직교 5.625, HDR, 후처리 켬. 타이틀은 `WaterCamera`(1920x640 RT, MSAA)가 더 있음 |
+| 스프라이트 PPU | 보이는 것 모두 16 → 화면 세로 아트 텍셀 = 5.625 × 2 × 16 = **180**, 1000줄 화면에서 텍셀 하나 ≈ 5.6 픽셀 |
+| 렌더러 기능 | 2D 렌더러에 `Glitch`, `FullScreenPassRendererFeature` |
+| 정렬 레이어 | Background, Ground, Default, FX, CameraSortingLayerTarget, UI, CameraSortingLayerCamera |
+| 2D 조명 (전투 방) | 19개 켜짐: 점 14, 스프라이트(쿠키) 3, 전역 1, 자유형 1. 모두 블렌드 스타일 0 |
+| 볼륨 | 전역 1개, Bloom만 (threshold 1.03, intensity 1.8, scatter 0.65) |
+| UI | HUD 캔버스는 모두 Screen Space Overlay(배율 2.25) → 렌더 배율 영향 없음. 장전 바·`[UI] World` 등은 월드 공간(같이 줄어듦) |
+| 스크립트 | 켜진 MonoBehaviour 2088, Update 463, LateUpdate 243. 많은 것: `Animator2D_SpriteRenderer` 136, `NetworkTransformReliable`(Mirror, U·L) 104, `BreakableProp` 81, `BoingToHit` 81, `Shadow`(L) 69 |
+| 그리기 | draw 187, SetPass 125 |
+| 원래 프레임 | 114~119 fps, p50 8.3~8.4 ms. 메인 스레드: Update 2.4, PreLateUpdate 0.9, PostLateUpdate 4.1, TimeUpdate(표시 대기) 0.8 ms |
+
+- 렌더 배율 0.5 이하에서는 메인 스레드(PostLateUpdate 약 3.1~3.3 + Update 약 1.7 ms)가 남아 150~160 fps에서 멈춤 → 이 PC에서 그다음은 CPU 쪽 [추론]
+- 게임 종료 때 `UI_CharacterStatusPanel.Disconnect`에서 NullReferenceException (게임 자체, LXIUM 무관) [관찰]
+
+## 5. 아직 모르는 것
+
+- 마을·보스·날씨 장면 (자동 측정은 세이브 위치의 전투 방만 봄. 이동이 필요)
+- 레이어 배치 수 (URP 내부 값이라 probe에 아직 없음)
+- UHD 620급에서의 실제 수치 (이 PC는 0.5 배율 이하에서 CPU가 먼저 막힘)
+- PostLateUpdate 4 ms의 내역 (렌더 기록·제출 대 UI 캔버스 갱신)
