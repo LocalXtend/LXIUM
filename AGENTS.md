@@ -15,8 +15,10 @@ c++ 같은 경우에는 데이터 지향형 구조를 따르세요.
 - `docs/human/`은 사람용, `docs/ai/`는 AI용 문서입니다. 같은 주제는 같은 파일 이름으로 양쪽에 둡니다.
 - 한쪽을 고치면 다른 쪽도 같은 커밋에서 고칩니다.
 - 애드온 규격: `docs/ai/addon.md`. 런처는 이 규격의 패키지만 다루고, 각 게임 모드 저장소(`LocalXtend/LXIUM_<게임>`)는 이 규격으로 결과물을 만듭니다.
-- 애드온 모음(catalog.json) 규격: `docs/ai/catalog.md`.
+- 애드온 모음(catalog.json) 규격: `docs/ai/catalog.md`. 공식 모음은 모드 저장소 목록이라 모드를 릴리스해도 고치지 않습니다.
+- 모드 설정 설명(.lxconfig) 규격: `docs/ai/lxconfig.md`.
 - 런처 구조·흐름: `docs/ai/launcher.md`. 화면을 고칠 때는 `docs/ai/design.md`의 규칙과 이유를 먼저 읽습니다.
+- 런처 화면 글은 코드에 직접 쓰지 않고 `launcher/lang/*.json`에 둡니다. 새 문구는 `ko.json`과 다른 모든 언어 파일에 같은 커밋에서 넣습니다.
 - 새 게임 모드는 https://github.com/LocalXtend/LXIUM_sample 을 복사해 새 저장소로 만듭니다. 사용법은 그 저장소 AGENTS.md 맨 위 주석에 있습니다.
 
 ## 코드 작성법
@@ -39,7 +41,7 @@ git은 dev 브렌치를 사용합니다.
 이 저장소(LocalXtend/LXIUM)에는 런처, 규격 문서, `build.ps1`, 공식 애드온 모음 `catalog.json`을 둡니다.
 게임 모드는 게임마다 따로 저장소를 둡니다 (`LocalXtend/LXIUM_<게임>`, 예: LXIUM_mahosaba, 템플릿 LXIUM_sample).
 로컬에서는 모드 저장소를 이 저장소의 `optimizeMods/LXIUM_<게임>/`에 clone합니다. `optimizeMods/`는 `.gitignore`로 이 저장소에서 제외하고, 모드 커밋·릴리즈는 각 모드 저장소에서 합니다.
-`build.ps1`은 `optimizeMods/`의 clone에서 애드온 zip을 모으므로, 런처를 빌드하기 전에 모드 저장소를 clone·빌드해 둡니다.
+`build.ps1`은 런처만 빌드합니다. 모드는 포터블 zip에 넣지 않고, 런처가 애드온 모음으로 각 모드 저장소의 릴리스를 받습니다.
 릴리즈 태그는 런처 `LXIUM-v<버전>`, 모드 `<id>-v<버전>` 형식입니다.
 
 커밋은 GitHub 계정 LocalXtend로 합니다 (`user.name=LocalXtend`, `user.email=285211027+LocalXtend@users.noreply.github.com`).

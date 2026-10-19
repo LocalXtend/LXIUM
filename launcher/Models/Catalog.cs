@@ -99,7 +99,7 @@ public static class Catalogs
         }
     }
 
-    static async Task<List<CatalogEntry>> ResolveAsync(CatalogDoc doc, string cacheDir, List<string> errors)
+    public static async Task<List<CatalogEntry>> ResolveAsync(CatalogDoc doc, string cacheDir, List<string> errors)
     {
         var list = new List<CatalogEntry>();
         foreach (var a in doc.Addons)
