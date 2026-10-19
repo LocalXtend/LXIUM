@@ -37,7 +37,8 @@
 - 그 태그의 저장소 루트에 `lxium.json`(필수)과 `addon.png`(아이콘, 선택)
 
 **2. 외부 모드 (LXIUM 규격이 아닌 남의 모드)**
-남이 만든 모드의 GitHub 릴리스 zip에서 필요한 파일만 골라 쓰는 방법입니다. 예를 들어 ManosabaLoader KR은 릴리스 zip에 BepInEx 전체가 들어 있지만, 런처는 `BepInEx/plugins/ManosabaLoader/`만 가져옵니다 (BepInEx는 런처가 따로 관리).
+남이 만든 모드의 GitHub 릴리스 zip에서 필요한 파일만 골라 쓰는 방법입니다. 예를 들어 어떤 모드의 릴리스 zip에 BepInEx 전체가 들어 있어도, `include`에 `BepInEx/plugins/그모드/`만 적으면 런처는 그 폴더만 가져옵니다 (BepInEx는 런처가 따로 관리).
+외부 모드는 그 모드 제작자의 동의를 받은 뒤 등록하세요.
 `asset`(파일 이름 규칙), `include`(가져올 폴더), `manifest`(이름·게임·로더 정보)를 적습니다. 자세한 모양은 AI용 문서를 보세요.
 
 **3. 고정 주소**

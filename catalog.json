@@ -4,30 +4,6 @@
   "addons": [
     {
       "github": "LocalXtend/LXIUM_manosaba"
-    },
-    {
-      "github": "KOKOTO-DEV/ManosabaMod_KR",
-      "asset": "^ManosabaLoader_KR_V[0-9_]+\\.zip$",
-      "version": "^v(\\d+\\.\\d+\\.\\d+)",
-      "include": {
-        "bepinex6": ["BepInEx/plugins/ManosabaLoader/"]
-      },
-      "manifest": {
-        "schema": 1,
-        "id": "ManosabaLoader",
-        "name": "Manosaba Loader KR",
-        "description": "마녀재판 모드(.msmod) 로더 한국어판. .msmod 파일은 게임 폴더의 ManosabaMod 폴더에 넣습니다. (KOKOTO-DEV, LGPL-2.1)",
-        "game": {
-          "id": "manosaba",
-          "name": "魔法少女ノ魔女裁判",
-          "exe": "manosaba.exe",
-          "steamAppId": 3101040
-        },
-        "variants": {
-          "bepinex6": { "minLoaderVersion": "6.0.0-be.785" }
-        },
-        "tags": ["msmod", "utility"]
-      }
     }
   ]
 }

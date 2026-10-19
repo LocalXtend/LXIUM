@@ -24,11 +24,11 @@ UTF-8 JSON. 주석 금지.
   "addons": [
     { "github": "LocalXtend/LXIUM_manosaba" },
     {
-      "github": "KOKOTO-DEV/ManosabaMod_KR",
-      "asset": "^ManosabaLoader_KR_V[0-9_]+\\.zip$",
+      "github": "SomeAuthor/SomeMod",
+      "asset": "^SomeMod_V[0-9_]+\\.zip$",
       "version": "^v(\\d+\\.\\d+\\.\\d+)",
-      "include": { "bepinex6": ["BepInEx/plugins/ManosabaLoader/"] },
-      "manifest": { "schema": 1, "id": "ManosabaLoader", "name": "...", "game": { "...": "" }, "variants": { "bepinex6": {} }, "tags": ["msmod"] }
+      "include": { "bepinex6": ["BepInEx/plugins/SomeMod/"] },
+      "manifest": { "schema": 1, "id": "SomeMod", "name": "...", "game": { "...": "" }, "variants": { "bepinex6": {} }, "tags": ["utility"] }
     },
     { "url": "https://example.com/My_mod-1.0.0.zip", "sha256": "64자", "manifest": { "...": "zip 안 lxium.json 그대로" } }
   ]
@@ -67,7 +67,7 @@ UTF-8 JSON. 주석 금지.
 
 - 공식 모음은 저장소 목록이라 모드를 릴리스해도 고치지 않음. 새 게임 모드 저장소·외부 모드를 등록할 때만 고침
 - 모드 릴리스는 각 모드 저장소에서: 태그 `<id>-v<버전>`을 그 버전 커밋에 두고, asset `<id>-<버전>.zip`을 올림 (`addon.md` 7장)
-- 외부 모드를 등록하기 전: 릴리스 zip을 받아 `include` 경로가 맞는지, 라이선스가 재배포가 아닌 "원본 릴리스에서 받기"를 막지 않는지 확인
+- 외부 모드를 등록하기 전: 그 모드 제작자의 동의를 받음 (동의 없이 공식 모음에 넣지 않음). 릴리스 zip을 받아 `include` 경로가 맞는지, 라이선스가 "원본 릴리스에서 받기"를 막지 않는지 확인
 
 ## 5. 보안 규칙
 

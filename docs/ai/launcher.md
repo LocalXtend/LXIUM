@@ -94,4 +94,4 @@ cache/                 # GitHub 릴리스·아이콘 캐시
 
 - 수동 게임 폴더 지정 (Steam 게임만)
 - 모음 항목 서명 (지금은 https + sha256)
-- `.msmod` 같은 콘텐츠 팩을 모음으로 받기 (지금은 ManosabaLoader 자체만)
+- `.msmod` 같은 콘텐츠 팩을 모음으로 받기
