@@ -17,6 +17,11 @@
     <Using Include="System.Net.Http" />
   </ItemGroup>
 
+  <!-- 언어 파일: exe 옆 lang/ 폴더에 둠 (사용자가 언어를 더할 수 있게 단일 exe에 넣지 않음) -->
+  <ItemGroup>
+    <Content Include="lang\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Remove="tests\**" />
     <Page Remove="tests\**" />

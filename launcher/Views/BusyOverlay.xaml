@@ -1,0 +1,29 @@
+<UserControl x:Class="LXIUM.Views.BusyOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- 화면 전체를 옅게 덮어 다른 동작을 막고, 가운데 카드에 지금 하는 일과 진행률을 보여 줌 -->
+    <Grid Background="#B3F5F4FA">
+        <Border Style="{StaticResource Card}" Background="White" Effect="{StaticResource Shadow}" Width="420"
+                HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,26">
+            <StackPanel>
+                <DockPanel>
+                    <!-- 도는 고리: 회색 원 위에 청록 호 -->
+                    <Grid DockPanel.Dock="Left" Width="34" Height="34" Margin="0,0,16,0" VerticalAlignment="Top">
+                        <Ellipse Stroke="#E2DFEC" StrokeThickness="4"/>
+                        <Path Stroke="{StaticResource Teal}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M17,2 A15,15 0 0 1 32,17" RenderTransformOrigin="0.5,0.5">
+                            <Path.RenderTransform><RotateTransform x:Name="Spin"/></Path.RenderTransform>
+                        </Path>
+                    </Grid>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="Message" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Ink}" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="Detail" Style="{StaticResource Desc}" FontSize="12" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </DockPanel>
+                <Grid x:Name="Bar" Margin="0,18,0,0" Visibility="Collapsed">
+                    <ProgressBar x:Name="Progress" Style="{StaticResource SoftProgress}" Minimum="0" Maximum="1"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

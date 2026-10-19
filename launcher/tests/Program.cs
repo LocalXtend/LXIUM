@@ -9,6 +9,10 @@ static void Check(bool ok, string what)
     Console.WriteLine("ok  " + what);
 }
 
+// 문구는 기준 언어(ko)로 검사 (lang/은 런처 프로젝트에서 같이 복사됨)
+Loc.I.Load(AppContext.BaseDirectory, "ko");
+Check(Loc.T("mod.installed", "1.0.0", "BepInEx 6") == "v1.0.0 설치됨 · BepInEx 6" && Loc.Available(AppContext.BaseDirectory).Count == 5, "언어 파일 5개, 자리 채우기");
+
 // 로더 버전 비교
 Check(Versions.Compare("6.0.0-be.785", "6.0.0-be.785") == 0, "같은 버전");
 Check(Versions.Compare("6.0.0-be.697", "6.0.0-be.785") < 0, "프리릴리스 번호 비교");
@@ -225,14 +229,31 @@ var m100 = cat[0].Manifest with { Version = "1.0.0", Variants = new() { ["bepine
 var built = Game.Build([new Addon("local.zip", m100)], cat, []);
 Check(built is [{ Packages: [{ Versions: [{ Version: "1.1.0", Local: null }, { Version: "1.0.0", Local: not null }] }] }], "받은 것·모음 버전 합치기 (최신순)");
 Check(Game.Build([], cat, []).Count == 0, "설치 안 된 게임의 모음 항목은 라이브러리에서 뺌");
+var schema3 = false;
+try { Catalogs.ParseDoc("""{"schema":3,"name":"x","addons":[]}""", "https://x/c.json"); } catch (InvalidDataException) { schema3 = true; }
+Check(schema3 && Catalogs.ParseDoc("""{"schema":2,"name":"","addons":[{"github":"a/b"}]}""", "https://host.example/c.json") is { Name: "host.example", Addons: [{ Github: "a/b" }] }, "모음 schema 2 읽기, 3 거부");
 
 var pkg = built[0].Packages[0];
 var bep788 = new LoaderInfo("bepinex6", "BepInEx 6", "6.0.0-be.788");
-var addonRow = new AddonRow(pkg, new InstallRecord("LXIUM_test", "1.0.0", "bepinex6", [], []), false, [bep788]);
-Check(addonRow.InstallLabel == "받아서 업데이트" && addonRow.Status.Contains("v1.1.0 있음") && addonRow.Compat!.Contains("6.0.0-be.800"), "업데이트·로더 버전 호환 표시");
+var iconCache = Path.Combine(Path.GetTempPath(), "lxium-icons");
+var addonRow = new AddonRow(pkg, new InstallRecord("LXIUM_test", "1.0.0", "bepinex6", [], []), false, [bep788], iconCache);
+Check(addonRow.IsAdded && addonRow.InstallLabel == "업데이트" && addonRow.Status.Contains("v1.1.0 있음") && addonRow.Compat!.Contains("6.0.0-be.800"), "업데이트·로더 버전 호환 표시");
 addonRow.Selected = pkg.Versions[1];
 Check(addonRow.InstallLabel == "재설치" && addonRow.Compat is null, "버전 고르기");
-Check(new AddonRow(pkg, null, false, [new LoaderInfo("melonloader", "MelonLoader", "0.7.3")]).Compat!.Contains("맞지 않음"), "다른 로더와 호환 안 됨 표시");
+Check(new AddonRow(pkg, null, false, [new LoaderInfo("melonloader", "MelonLoader", "0.7.3")], iconCache).Compat!.Contains("맞지 않음"), "다른 로더와 호환 안 됨 표시");
+var notAdded = new AddonRow(new AddonPackage([new AddonVersion(cat[0].Manifest, null, cat[0])]), null, false, [], iconCache);
+Check(!notAdded.IsAdded && notAdded.InstallLabel == "추가" && notAdded.Status == "추가 안 함", "모음에만 있는 모드는 추가부터");
+Check(notAdded.Matches("test", []) && notAdded.Matches("", []) && !notAdded.Matches("없는이름", []) && !notAdded.Matches("", ["fun"]), "검색·태그 거르기");
+
+// 이름을 바꾼 애드온(replaces)은 같은 Steam 게임으로 묶고 옛 것을 숨김
+var oldM = m100 with { Id = "LXIUM_old", Game = m100.Game with { Id = "old-id", SteamAppId = 42 } };
+var newM = m100 with { Id = "LXIUM_new", Game = m100.Game with { Id = "new-id", SteamAppId = 42 }, Replaces = ["LXIUM_old"] };
+var renamed = Game.Build([new Addon("a.zip", oldM), new Addon("b.zip", newM)], [], []);
+Check(renamed is [{ Key: "42", Packages: [{ Id: "LXIUM_new" }] }], "이름 바꾼 애드온 묶기·옛 것 숨김");
+
+// 로더 충돌
+Check(Loaders.Conflict([bep788]) is null && Loaders.Conflict([bep788, new LoaderInfo("melonloader", "MelonLoader", "0.7.3")]) is not null
+      && Loaders.Conflict([bep788, new LoaderInfo("bepinex5", "BepInEx 5", "5.4.23")])!.Contains("BepInEx 5와 6"), "로더 충돌 경고");
 
 // 런처 릴리스: LXIUM-v 태그의 정식 릴리스 중 지금보다 새 최신
 using var relDoc = System.Text.Json.JsonDocument.Parse("""
@@ -257,6 +278,74 @@ try
 finally
 {
     Directory.Delete(setDir, true);
+}
+
+// .lxconfig: 형식·기본값·범위·선택지·언어별 설명, 게임을 실행하지 않아도 설정 파일 만들기
+const string lx = """
+# 예시
+Section FrameRate
+Set TargetFps Int 0 Range -1 240
+Lang TargetFps ko "fps 제한\n(-1은 제한 없음)"
+Lang TargetFps en "FPS limit"
+Name TargetFps ko "목표 fps"
+Name FrameRate ko "프레임"
+Section Urp
+Set Ssao Enum Off Values Off|StageOnly|Game
+Set MsaaOff Bool true
+Set Label String "a b"
+Oops line
+""";
+var lxc = LxConfig.Parse(lx);
+Check(lxc.Settings.Count == 4 && lxc.Errors.Count == 1 && lxc.Find("TargetFps") is { Min: -1, Max: 240, Type: "Int" }
+      && lxc.Find("Urp.Ssao").Values.SequenceEqual(["Off", "StageOnly", "Game"]) && lxc.Find("TargetFps").Descriptions["ko"] == "fps 제한\n(-1은 제한 없음)", ".lxconfig 읽기");
+var lxDir = Directory.CreateTempSubdirectory("lxium-lx").FullName;
+try
+{
+    var cfgPath = Path.Combine(lxDir, "BepInEx", "config", "LXIUM_test.cfg");
+    var created = ConfigFile.Open(cfgPath, lxc, "ko")!;
+    var ce = created.Sections.SelectMany(x => x.Entries).ToDictionary(e => e.Key);
+    Check(created.IsNew && created.Sections[0].DisplayName == "프레임" && ce["TargetFps"] is { DisplayName: "목표 fps", IsSlider: true, Value: "0" }
+          && ce["Ssao"].HasChoices && ce["MsaaOff"].IsBool, "설정 파일 없이 .lxconfig로 편집");
+    ce["TargetFps"].Value = "144";
+    created.Save();
+    Check(File.ReadAllText(cfgPath) == "[FrameRate]\nTargetFps = 144\n\n[Urp]\nSsao = Off\nMsaaOff = true\nLabel = a b\n", "기본값으로 설정 파일 만들기");
+
+    // 이미 있는 파일에 .lxconfig에만 있는 설정은 그 섹션 끝에 더함
+    File.WriteAllText(cfgPath, "[FrameRate]\nTargetFps = 60\n");
+    var merged = ConfigFile.Open(cfgPath, lxc, "en")!;
+    Check(!merged.IsNew && merged.Sections.SelectMany(x => x.Entries).First(e => e.Key == "TargetFps") is { Value: "60", Description: "FPS limit" }, "있는 파일 + .lxconfig 설명 (언어별)");
+    merged.Save();
+    Check(File.ReadAllText(cfgPath) == "[FrameRate]\nTargetFps = 60\n\n[Urp]\nSsao = Off\nMsaaOff = true\nLabel = a b\n", "없는 설정 더하기");
+    var tomlPath = Path.Combine(lxDir, "UserData", "LXIUM_test.cfg");
+    ConfigFile.Open(tomlPath, lxc, "ko")!.Save();
+    Check(File.ReadAllText(tomlPath).Contains("Ssao = \"Off\"") && File.ReadAllText(tomlPath).Contains("Label = \"a b\""), "MelonLoader(TOML)은 문자열 따옴표");
+    Check(ConfigFile.Open(Path.Combine(lxDir, "none.cfg"), null, "ko") is null, ".lxconfig도 파일도 없으면 null");
+}
+finally
+{
+    Directory.Delete(lxDir, true);
+}
+
+// 외부 모드 다시 묶기: include 경로만, 변형 폴더 아래로
+var repDir = Directory.CreateTempSubdirectory("lxium-rep").FullName;
+try
+{
+    var srcZip = Path.Combine(repDir, "src.zip");
+    MakeZip(srcZip, new()
+    {
+        ["BepInEx/core/BepInEx.Core.dll"] = "x", ["winhttp.dll"] = "x", ["BepInEx/config/Ext.cfg"] = "x",
+        ["BepInEx/plugins/Ext/Ext.dll"] = "x", ["BepInEx/plugins/Ext/Lib.dll"] = "x",
+    });
+    var extM = cat[0].Manifest with { Id = "Ext", Version = "2.1.0" };
+    var outZip = Path.Combine(repDir, "out.zip");
+    Catalogs.Repackage(srcZip, outZip, extM, new() { ["bepinex6"] = ["BepInEx/plugins/Ext/"] });
+    using (var z = ZipFile.OpenRead(outZip))
+        Check(z.Entries.Select(e => e.FullName).Order().SequenceEqual(["bepinex6/BepInEx/plugins/Ext/Ext.dll", "bepinex6/BepInEx/plugins/Ext/Lib.dll", "lxium.json"])
+              && Addon.Load(outZip).Manifest is { Id: "Ext", Version: "2.1.0" }, "외부 모드 다시 묶기 (로더·설정 제외)");
+}
+finally
+{
+    Directory.Delete(repDir, true);
 }
 
 // 실제 배포처에서 로더 받기 (네트워크 필요): dotnet run --project launcher/tests -- --net

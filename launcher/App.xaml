@@ -1,6 +1,7 @@
 <Application x:Class="LXIUM.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:LXIUM.Views"
              StartupUri="Views/MainWindow.xaml">
     <Application.Resources>
         <FontFamily x:Key="Font">Segoe UI Variable Display, Segoe UI, Malgun Gothic</FontFamily>
@@ -145,10 +146,23 @@
         <Geometry x:Key="IconBack">m12 19-7-7 7-7 M19 12H5</Geometry>
         <Geometry x:Key="IconPlay">M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 0.003 3.458l-12 7A2 2 0 0 1 5 19z</Geometry>
         <Geometry x:Key="IconFolder">m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2</Geometry>
-        <Geometry x:Key="IconDownload">M12 15V3 M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 m7 10 5 5 5-5</Geometry>
+        <Geometry x:Key="IconDownload">M12 15V3 M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5</Geometry>
         <Geometry x:Key="IconTrash">M10 11v6 M14 11v6 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2</Geometry>
         <Geometry x:Key="IconPlus">M5 12h14 M12 5v14</Geometry>
         <Geometry x:Key="IconSliders">M10 5H3 M12 19H3 M14 3v4 M16 17v4 M21 12h-9 M21 19h-5 M21 5h-7 M8 10v4 M8 12H3</Geometry>
+        <Geometry x:Key="IconPackage">M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z M12 22V12 M3.29 7 12 12 20.71 7 M7.5 4.27l9 5.15</Geometry>
+        <Geometry x:Key="IconChevronLeft">m15 18-6-6 6-6</Geometry>
+        <Geometry x:Key="IconChevronRight">m9 18 6-6-6-6</Geometry>
+        <Geometry x:Key="IconChevronDown">m6 9 6 6 6-6</Geometry>
+        <Geometry x:Key="IconArrowRight">M5 12h14 M12 5l7 7-7 7</Geometry>
+        <Geometry x:Key="IconSearch">m21 21-4.34-4.34 M3 11a8 8 0 1 0 16 0a8 8 0 1 0-16 0</Geometry>
+        <Geometry x:Key="IconAlert">M2 12a10 10 0 1 0 20 0a10 10 0 1 0-20 0 M12 8v4 M12 16h.01</Geometry>
+        <!-- 4갈래 반짝임 (플레이 칸 hover) -->
+        <Geometry x:Key="Sparkle">M0,-6 L1.5,-1.5 6,0 1.5,1.5 0,6 -1.5,1.5 -6,0 -1.5,-1.5 Z</Geometry>
+
+        <!-- 움직임: 모든 전환은 easeInOutCubic 0.3초 (design.md 9장) -->
+        <CubicEase x:Key="Ease" EasingMode="EaseInOut"/>
+        <Duration x:Key="EaseTime">0:0:0.3</Duration>
 
         <!-- 아이콘 하나를 글자색으로 그림. Data에 위 Geometry를 넣음 -->
         <Style x:Key="IconPath" TargetType="Path">
@@ -211,7 +225,7 @@
                                 BorderBrush="#E2DFEC" BorderThickness="1">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Ellipse x:Name="Dot" Width="8" Height="8" Fill="#B9B4CC" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="T" Text="비활성화" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Sub}"/>
+                                <TextBlock x:Name="T" Text="{l:T switch.off}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Sub}"/>
                             </StackPanel>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -219,7 +233,7 @@
                                 <Setter TargetName="B" Property="Background" Value="{StaticResource Teal}"/>
                                 <Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Teal}"/>
                                 <Setter TargetName="Dot" Property="Fill" Value="#7FE0B0"/>
-                                <Setter TargetName="T" Property="Text" Value="활성화"/>
+                                <Setter TargetName="T" Property="Text" Value="{l:T switch.on}"/>
                                 <Setter TargetName="T" Property="Foreground" Value="White"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -264,6 +278,259 @@
                                 </Thumb>
                             </Track.Thumb>
                         </Track>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+          게임 카드 위 세 칸 (설정·모드·플레이). 바탕 = 흰색 70%(30% 투명), 마우스를 올리면 85%(15% 투명)로 짙어지고
+          화살표가 커지며 아이콘이 칸마다 다르게 움직임. Tag = 아이콘, Content = 글
+        -->
+        <Style x:Key="ZoneBase" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Focusable" Value="False"/>
+        </Style>
+
+        <Style x:Key="ZoneLeft" TargetType="Button" BasedOn="{StaticResource ZoneBase}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Background="Transparent">
+                            <Rectangle x:Name="Bg" Fill="White" Opacity="0.7"/>
+                            <Viewbox x:Name="Arrow" Width="18" Height="18" HorizontalAlignment="Left" Margin="8,0,0,0" RenderTransformOrigin="0.5,0.5">
+                                <Viewbox.RenderTransform><ScaleTransform/></Viewbox.RenderTransform>
+                                <Canvas Width="24" Height="24"><Path Data="{StaticResource IconChevronLeft}" Style="{StaticResource IconPath}" StrokeThickness="2.5"/></Canvas>
+                            </Viewbox>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Viewbox x:Name="Icon" Width="30" Height="30" RenderTransformOrigin="0.5,0.5">
+                                    <Viewbox.RenderTransform><RotateTransform/></Viewbox.RenderTransform>
+                                    <Canvas Width="24" Height="24"><Path Data="{TemplateBinding Tag}" Style="{StaticResource IconPath}"/></Canvas>
+                                </Viewbox>
+                                <ContentPresenter HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Bg" Storyboard.TargetProperty="Opacity" To="0.85" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.35" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.35" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Icon" Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" To="120" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Bg" Storyboard.TargetProperty="Opacity" To="0.7" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Icon" Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" To="0" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ZoneRight" TargetType="Button" BasedOn="{StaticResource ZoneBase}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Background="Transparent">
+                            <Rectangle x:Name="Bg" Fill="White" Opacity="0.7"/>
+                            <Viewbox x:Name="Arrow" Width="18" Height="18" HorizontalAlignment="Right" Margin="0,0,8,0" RenderTransformOrigin="0.5,0.5">
+                                <Viewbox.RenderTransform><ScaleTransform/></Viewbox.RenderTransform>
+                                <Canvas Width="24" Height="24"><Path Data="{StaticResource IconChevronRight}" Style="{StaticResource IconPath}" StrokeThickness="2.5"/></Canvas>
+                            </Viewbox>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Viewbox x:Name="Icon" Width="30" Height="30" RenderTransformOrigin="0.5,0.5">
+                                    <Viewbox.RenderTransform><TranslateTransform/></Viewbox.RenderTransform>
+                                    <Canvas Width="24" Height="24"><Path Data="{TemplateBinding Tag}" Style="{StaticResource IconPath}"/></Canvas>
+                                </Viewbox>
+                                <ContentPresenter HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Bg" Storyboard.TargetProperty="Opacity" To="0.85" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.35" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.35" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                    <!-- 상자 아이콘이 좌우로 흔들림 (흔들고 잠깐 쉼을 되풀이) -->
+                                    <BeginStoryboard x:Name="Shake">
+                                        <Storyboard RepeatBehavior="Forever" Duration="0:0:1.1">
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Icon" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)">
+                                                <EasingDoubleKeyFrame KeyTime="0:0:0.1" Value="-4" EasingFunction="{StaticResource Ease}"/>
+                                                <EasingDoubleKeyFrame KeyTime="0:0:0.2" Value="4" EasingFunction="{StaticResource Ease}"/>
+                                                <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="-3" EasingFunction="{StaticResource Ease}"/>
+                                                <EasingDoubleKeyFrame KeyTime="0:0:0.4" Value="3" EasingFunction="{StaticResource Ease}"/>
+                                                <EasingDoubleKeyFrame KeyTime="0:0:0.5" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="Shake"/>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Bg" Storyboard.TargetProperty="Opacity" To="0.7" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ZonePlay" TargetType="Button" BasedOn="{StaticResource ZoneBase}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Background="Transparent">
+                            <Rectangle x:Name="Bg" Fill="White" Opacity="0.7"/>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Grid Width="56" Height="44">
+                                    <Viewbox x:Name="Icon" Width="30" Height="30" RenderTransformOrigin="0.5,0.5">
+                                        <Viewbox.RenderTransform><ScaleTransform/></Viewbox.RenderTransform>
+                                        <Canvas Width="24" Height="24"><Path Data="{TemplateBinding Tag}" Style="{StaticResource IconPath}"/></Canvas>
+                                    </Viewbox>
+                                    <!-- 다이아몬드 반짝임 세 개: 차례로 커졌다 사라짐 -->
+                                    <Canvas>
+                                        <Path x:Name="S1" Data="{StaticResource Sparkle}" Fill="{StaticResource Teal}" Canvas.Left="6" Canvas.Top="8" Opacity="0">
+                                            <Path.RenderTransform><ScaleTransform ScaleX="0" ScaleY="0"/></Path.RenderTransform>
+                                        </Path>
+                                        <Path x:Name="S2" Data="{StaticResource Sparkle}" Fill="{StaticResource Teal}" Canvas.Left="50" Canvas.Top="12" Opacity="0">
+                                            <Path.RenderTransform><ScaleTransform ScaleX="0" ScaleY="0"/></Path.RenderTransform>
+                                        </Path>
+                                        <Path x:Name="S3" Data="{StaticResource Sparkle}" Fill="{StaticResource Teal}" Canvas.Left="44" Canvas.Top="38" Opacity="0">
+                                            <Path.RenderTransform><ScaleTransform ScaleX="0" ScaleY="0"/></Path.RenderTransform>
+                                        </Path>
+                                    </Canvas>
+                                </Grid>
+                                <ContentPresenter HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                        <ControlTemplate.Resources>
+                            <!-- 반짝임 하나: 0.3초 커지고 0.3초 작아짐 -->
+                            <Storyboard x:Key="Twinkle" RepeatBehavior="Forever" Duration="0:0:0.9">
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S1" Storyboard.TargetProperty="Opacity">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="1" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S1" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="1" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S1" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="1" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S2" Storyboard.TargetProperty="Opacity" BeginTime="0:0:0.3">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="1" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S2" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" BeginTime="0:0:0.3">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0.8" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S2" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" BeginTime="0:0:0.3">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0.8" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S3" Storyboard.TargetProperty="Opacity" BeginTime="0:0:0.15">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="1" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S3" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" BeginTime="0:0:0.15">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0.6" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S3" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" BeginTime="0:0:0.15">
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0.6" EasingFunction="{StaticResource Ease}"/>
+                                    <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0" EasingFunction="{StaticResource Ease}"/>
+                                </DoubleAnimationUsingKeyFrames>
+                            </Storyboard>
+                        </ControlTemplate.Resources>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Bg" Storyboard.TargetProperty="Opacity" To="0.85" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Icon" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.15" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Icon" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.15" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                    <BeginStoryboard x:Name="Sparkles" Storyboard="{StaticResource Twinkle}"/>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="Sparkles"/>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Bg" Storyboard.TargetProperty="Opacity" To="0.7" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Icon" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Icon" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource EaseTime}" EasingFunction="{StaticResource Ease}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 태그 거르기 알약: 고르면 청록 -->
+        <Style x:Key="Chip" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="B" CornerRadius="999" Padding="12,6" Background="White" BorderBrush="#E2DFEC" BorderThickness="1">
+                            <TextBlock x:Name="T" Text="{TemplateBinding Content}" FontSize="12" FontWeight="SemiBold" Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="B" Property="Background" Value="{StaticResource Teal}"/>
+                                <Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Teal}"/>
+                                <Setter TargetName="T" Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 진행 막대: 둥근 옅은 트랙에 청록 채움 -->
+        <Style x:Key="SoftProgress" TargetType="ProgressBar">
+            <Setter Property="Height" Value="8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid>
+                            <Border x:Name="PART_Track" CornerRadius="4" Background="#E2DFEC"/>
+                            <Border x:Name="PART_Indicator" CornerRadius="4" Background="{StaticResource Teal}" HorizontalAlignment="Left"/>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>

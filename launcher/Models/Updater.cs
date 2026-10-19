@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace LXIUM.Models;
@@ -14,15 +13,14 @@ public sealed record LauncherRelease(string Version, string ZipUrl);
 public static class Updater
 {
     public const string Repo = "LocalXtend/LXIUM";
-    static readonly HttpClient Http = new() { DefaultRequestHeaders = { UserAgent = { new ProductInfoHeaderValue("LXIUM", Current) } } };
 
     public static string Current => typeof(Updater).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     /// <summary>현재보다 새 정식 릴리스가 있으면 그 정보, 없으면 null</summary>
     public static async Task<LauncherRelease?> CheckAsync()
     {
-        using var res = await Http.GetAsync($"https://api.github.com/repos/{Repo}/releases?per_page=30");
-        if (!res.IsSuccessStatusCode) throw new InvalidOperationException($"릴리스 정보를 가져오지 못했습니다 ({(int)res.StatusCode}).");
+        using var res = await Net.Http.GetAsync($"https://api.github.com/repos/{Repo}/releases?per_page=30");
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(Loc.T("err.http", Repo, (int)res.StatusCode));
         using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
         return Pick(doc.RootElement, Current);
     }
@@ -46,27 +44,28 @@ public static class Updater
     }
 
     /// <summary>새 버전을 appDir에 풉니다. 끝나면 exePath를 다시 실행하고 지금 프로세스를 끝내야 합니다.</summary>
-    public static async Task ApplyAsync(LauncherRelease release, string appDir, string exePath)
+    public static async Task ApplyAsync(LauncherRelease release, string appDir, string exePath, IProgress<double>? progress = null)
     {
         var tmp = Path.GetTempFileName();
         try
         {
-            await using (var s = await Http.GetStreamAsync(release.ZipUrl))
-            await using (var f = File.Create(tmp))
-                await s.CopyToAsync(f);
-            using var zip = ZipFile.OpenRead(tmp);
-            var exeName = Path.GetFileName(exePath);
-            if (zip.GetEntry(exeName) is null) throw new InvalidDataException($"업데이트 파일에 {exeName}이 없습니다.");
-            foreach (var entry in zip.Entries.Where(e => e.Name != ""))
+            await Net.DownloadAsync(release.ZipUrl, tmp, progress);
+            await Task.Run(() =>
             {
-                var rel = entry.FullName.Replace('\\', '/');
-                if (rel.Equals(AppSettings.FileName, StringComparison.OrdinalIgnoreCase)) continue;
-                var dest = rel.Equals(exeName, StringComparison.OrdinalIgnoreCase) ? exePath + ".new" : Installer.SafePath(appDir, rel);
-                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-                entry.ExtractToFile(dest, true);
-            }
-            File.Move(exePath, exePath + ".old", true);
-            File.Move(exePath + ".new", exePath);
+                using var zip = ZipFile.OpenRead(tmp);
+                var exeName = Path.GetFileName(exePath);
+                if (zip.GetEntry(exeName) is null) throw new InvalidDataException(Loc.T("err.updateNoExe", exeName));
+                foreach (var entry in zip.Entries.Where(e => e.Name != ""))
+                {
+                    var rel = entry.FullName.Replace('\\', '/');
+                    if (rel.Equals(AppSettings.FileName, StringComparison.OrdinalIgnoreCase)) continue;
+                    var dest = rel.Equals(exeName, StringComparison.OrdinalIgnoreCase) ? exePath + ".new" : Installer.SafePath(appDir, rel);
+                    Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                    entry.ExtractToFile(dest, true);
+                }
+                File.Move(exePath, exePath + ".old", true);
+                File.Move(exePath + ".new", exePath);
+            });
         }
         finally
         {

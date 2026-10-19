@@ -25,10 +25,10 @@ public static class Installer
     {
         if (loader is not null && m.Variants.ContainsKey(loader)) return (loader, null);
         if (m.Variants.ContainsKey("none")) return ("none", null);
-        var wanted = string.Join(", ", m.Variants.Keys.Select(k => Loaders.Names.GetValueOrDefault(k, k)));
+        var wanted = string.Join(", ", m.Variants.Keys.Select(Loaders.Name));
         return loader is null
-            ? (null, $"게임에 모드 로더가 없습니다. {wanted}를 먼저 설치하세요.")
-            : (null, $"이 모드는 {Loaders.Names.GetValueOrDefault(loader, loader)}를 지원하지 않습니다. 필요한 로더: {wanted}");
+            ? (null, Loc.T("err.noLoader", wanted))
+            : (null, Loc.T("err.loaderMismatch", Loaders.Name(loader), wanted));
     }
 
     /// <summary>
@@ -61,6 +61,13 @@ public static class Installer
     {
         var id = addon.Manifest.Id;
         Uninstall(addon, root);
+        foreach (var old in addon.Manifest.Replaces ?? [])
+        {
+            // 이름을 바꾼 애드온: 옛 id를 지우고, 새 설정 파일이 없으면 옛 설정을 옮겨 씀
+            Uninstall(root, old);
+            var (from, to) = (ConfigFile.ModConfigPath(root, old, variant), ConfigFile.ModConfigPath(root, id, variant));
+            if (File.Exists(from) && !File.Exists(to)) File.Copy(from, to);
+        }
 
         var record = new InstallRecord(id, addon.Manifest.Version, variant, [], []);
         var prefix = variant + "/";
@@ -130,7 +137,7 @@ public static class Installer
         var full = Path.GetFullPath(Path.Combine(baseDir, rel));
         var basePath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(baseDir)) + Path.DirectorySeparatorChar;
         if (Path.IsPathRooted(rel) || !full.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException($"허용되지 않는 경로: {rel}");
+            throw new InvalidDataException(Loc.T("err.badPath", rel));
         return full;
     }
 

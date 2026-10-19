@@ -9,12 +9,16 @@ public sealed record GameInfo(string Name, string? Summary, string? Released,
 /// <summary>Steam 상점 appdetails API. 키 없이 앱 ID로 게임 정보를 가져옵니다(한국어 우선).</summary>
 public static class SteamStore
 {
-    static readonly HttpClient Http = new();
+    /// <summary>런처 언어 → Steam 상점 언어</summary>
+    static string SteamLanguage(string code) => code switch
+    {
+        "ko" => "koreana", "ja" => "japanese", "zh-Hans" => "schinese", "zh-Hant" => "tchinese", _ => "english",
+    };
 
-    /// <summary>앱 ID가 없거나 상점에 없는 게임이면 null</summary>
+    /// <summary>앱 ID가 없거나 상점에 없는 게임이면 null. 런처 언어로 가져옵니다(없으면 Steam이 영어로 돌려줌)</summary>
     public static async Task<GameInfo?> FindAsync(int appId)
     {
-        var json = await Http.GetStringAsync($"https://store.steampowered.com/api/appdetails?appids={appId}&l=koreana");
+        var json = await Net.Http.GetStringAsync($"https://store.steampowered.com/api/appdetails?appids={appId}&l={SteamLanguage(Loc.I.Code)}");
         using var doc = JsonDocument.Parse(json);
         return Parse(doc.RootElement.GetProperty(appId.ToString()));
     }

@@ -18,8 +18,22 @@ public static class Loaders
         ("melonloader", "MelonLoader", ["MelonLoader/net35/MelonLoader.dll", "MelonLoader/net6/MelonLoader.dll"]),
     ];
 
-    public static readonly Dictionary<string, string> Names =
-        Table.ToDictionary(t => t.Id, t => t.Name).Append(new("none", "로더 없음")).ToDictionary();
+    public static readonly Dictionary<string, string> Names = Table.ToDictionary(t => t.Id, t => t.Name);
+
+    /// <summary>로더 표시 이름. "none"은 지금 언어의 "로더 없음"</summary>
+    public static string Name(string id) => id == "none" ? Loc.T("loader.none") : Names.GetValueOrDefault(id, id);
+
+    /// <summary>
+    /// 함께 깔리면 서로 부딪치는 로더 조합. BepInEx·MelonLoader는 둘 다 게임 시작에 끼어드는 DLL(winhttp/version)을 쓰고,
+    /// BepInEx 5·6은 같은 BepInEx 폴더를 씁니다. 부딪치면 그 이유, 아니면 null
+    /// </summary>
+    public static string? Conflict(IReadOnlyList<LoaderInfo> found)
+    {
+        if (found.Count < 2) return null;
+        var names = string.Join(", ", found.Select(l => l.Label));
+        return found.Any(l => l.Id == "bepinex5") && found.Any(l => l.Id == "bepinex6")
+            ? Loc.T("loader.conflictBep", names) : Loc.T("loader.conflict", names);
+    }
 
     public static List<LoaderInfo> Detect(string root)
     {

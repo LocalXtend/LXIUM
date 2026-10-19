@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -12,8 +11,6 @@ namespace LXIUM.Models;
 /// </summary>
 public static class LoaderSetup
 {
-    static readonly HttpClient Http = new() { DefaultRequestHeaders = { UserAgent = { new ProductInfoHeaderValue("LXIUM", "1") } } };
-
     /// <summary>로더가 게임 루트에 두는 파일·폴더. 제거할 때 지웁니다 (폴더는 안의 모드·설정까지).</summary>
     public static readonly Dictionary<string, string[]> Footprint = new()
     {
@@ -43,28 +40,28 @@ public static class LoaderSetup
         switch (loader)
         {
             case "bepinex5":
-                if (il2cpp) throw new InvalidOperationException("BepInEx 5는 IL2CPP 게임을 지원하지 않습니다.");
+                if (il2cpp) throw new InvalidOperationException(Loc.T("err.bep5Il2cpp"));
                 return await GitHubAssetAsync("BepInEx/BepInEx", "v5.", $@"^BepInEx_win_{arch}_[\d.]+\.zip$");
             case "bepinex6":
             {
-                var html = await Http.GetStringAsync("https://builds.bepinex.dev/projects/bepinex_be");
+                var html = await Net.Http.GetStringAsync("https://builds.bepinex.dev/projects/bepinex_be");
                 var backend = il2cpp ? "IL2CPP" : "Mono";
                 // 빌드 목록은 최신순. 첫 링크가 최신 빌드
                 var m = Regex.Match(html, $@"href=""(/projects/bepinex_be/\d+/BepInEx-Unity\.{backend}-win-{arch}-(6\.0\.0-be\.\d+)[^""]*\.zip)""");
-                if (!m.Success) throw new InvalidOperationException("BepInEx 6 빌드를 찾지 못했습니다.");
+                if (!m.Success) throw new InvalidOperationException(Loc.T("err.loaderNotFound", "builds.bepinex.dev"));
                 return ("https://builds.bepinex.dev" + m.Groups[1].Value, m.Groups[2].Value);
             }
             case "melonloader":
                 return await GitHubAssetAsync("LavaGang/MelonLoader", "v", $@"^MelonLoader\.{arch}\.zip$");
             default:
-                throw new InvalidOperationException($"런처가 설치할 수 없는 로더입니다: {loader}");
+                throw new InvalidOperationException(Loc.T("err.loaderUnsupported", loader));
         }
     }
 
     /// <summary>정식 릴리스 중 태그가 tagPrefix로 시작하는 최신 것의 asset</summary>
     static async Task<(string, string)> GitHubAssetAsync(string repo, string tagPrefix, string assetPattern)
     {
-        using var doc = JsonDocument.Parse(await Http.GetStringAsync($"https://api.github.com/repos/{repo}/releases?per_page=30"));
+        using var doc = JsonDocument.Parse(await Net.Http.GetStringAsync($"https://api.github.com/repos/{repo}/releases?per_page=30"));
         foreach (var rel in doc.RootElement.EnumerateArray())
         {
             var tag = rel.GetProperty("tag_name").GetString() ?? "";
@@ -73,26 +70,34 @@ public static class LoaderSetup
                 if (Regex.IsMatch(asset.GetProperty("name").GetString() ?? "", assetPattern))
                     return (asset.GetProperty("browser_download_url").GetString()!, tag.TrimStart('v'));
         }
-        throw new InvalidOperationException($"{repo} 릴리스에서 설치 파일을 찾지 못했습니다.");
+        throw new InvalidOperationException(Loc.T("err.loaderNotFound", repo));
     }
 
-    /// <summary>최신 로더를 받아 게임 루트에 풉니다. 설치한 버전을 돌려줍니다.</summary>
-    public static async Task<string> InstallAsync(string loader, string root, string exe)
+    /// <summary>이 게임에 맞는 최신 로더 버전 (업데이트 확인용)</summary>
+    public static async Task<string> LatestAsync(string loader, string root, string exe) =>
+        (await FindAsync(loader, Is64Bit(Path.Combine(root, exe)), IsIl2Cpp(root))).Version;
+
+    /// <summary>
+    /// 최신 로더를 받아 게임 루트에 풉니다(이미 있으면 덮어써서 업데이트). 설정·모드 폴더는 배포 zip에 없어 그대로 남습니다.
+    /// 설치한 버전을 돌려줍니다. progress = 받기 0~1
+    /// </summary>
+    public static async Task<string> InstallAsync(string loader, string root, string exe, IProgress<double>? progress = null)
     {
         var (url, version) = await FindAsync(loader, Is64Bit(Path.Combine(root, exe)), IsIl2Cpp(root));
         var tmp = Path.GetTempFileName();
         try
         {
-            await using (var s = await Http.GetStreamAsync(url))
-            await using (var f = File.Create(tmp))
-                await s.CopyToAsync(f);
-            using var zip = ZipFile.OpenRead(tmp);
-            foreach (var entry in zip.Entries.Where(e => e.Name != ""))
+            await Net.DownloadAsync(url, tmp, progress);
+            await Task.Run(() =>
             {
-                var dest = Installer.SafePath(root, entry.FullName.Replace('\\', '/'));
-                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-                entry.ExtractToFile(dest, true);
-            }
+                using var zip = ZipFile.OpenRead(tmp);
+                foreach (var entry in zip.Entries.Where(e => e.Name != ""))
+                {
+                    var dest = Installer.SafePath(root, entry.FullName.Replace('\\', '/'));
+                    Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                    entry.ExtractToFile(dest, true);
+                }
+            });
         }
         finally
         {

@@ -4,15 +4,26 @@ using LXIUM.Views;
 
 namespace LXIUM.Controllers;
 
-/// <summary>런처 설정 화면: 업데이트 확인·적용, 자동 확인, 애드온 모음 목록</summary>
+/// <summary>런처 설정 화면과 시작 처리: 언어, 업데이트 확인·적용, 자동 확인, 애드온 모음 목록</summary>
 public sealed class SettingsController(MainWindow view, AppSettings settings, LibraryController library)
 {
     static string AppDir => LibraryController.AppDir;
     LauncherRelease? pending;
     string status = "";
 
-    /// <summary>시작할 때: 지난 업데이트 정리, 게임 목록, 자동 확인이 켜져 있으면 업데이트 확인</summary>
+    /// <summary>시작: 언어가 정해지지 않았으면 언어 선택 화면부터, 아니면 바로 시작 처리</summary>
     public async Task StartAsync()
+    {
+        if (settings.Language is null || !Loc.Available(AppDir).Any(l => l.Code == settings.Language))
+        {
+            view.ShowLanguage(Loc.Available(AppDir));
+            return;
+        }
+        await StartCoreAsync();
+    }
+
+    /// <summary>지난 업데이트 정리, 게임 목록, 자동 확인이 켜져 있으면 업데이트 확인</summary>
+    async Task StartCoreAsync()
     {
         if (Environment.ProcessPath is string exe) Updater.CleanupOld(exe);
         var updates = await library.LoadAsync(fetchCatalogs: settings.AutoUpdate);
@@ -21,7 +32,30 @@ public sealed class SettingsController(MainWindow view, AppSettings settings, Li
         status = Summary(updates);
     }
 
-    public void Open() => view.ShowSettings(settings, Updater.Current, status, library.CatalogErrors);
+    /// <summary>언어 선택 화면에서 고른 언어를 바로 보여 줌 (아직 저장 안 함)</summary>
+    public void PreviewLanguage(string code) => Loc.I.Load(AppDir, code);
+
+    /// <summary>언어 선택 화면의 "다음": 저장하고 메인으로</summary>
+    public async Task ChooseLanguageAsync(string code)
+    {
+        Loc.I.Load(AppDir, code);
+        settings.Language = code;
+        Save();
+        await StartCoreAsync();
+    }
+
+    /// <summary>설정 화면에서 언어 바꾸기: 바로 적용</summary>
+    public void SetLanguage(string code)
+    {
+        if (code == Loc.I.Code) return;
+        Loc.I.Load(AppDir, code);
+        settings.Language = code;
+        Save();
+        library.Relocalize();
+        Open();
+    }
+
+    public void Open() => view.ShowSettings(settings, Updater.Current, status, library.CatalogErrors, Loc.Available(AppDir));
 
     public void SetAutoUpdate(bool on)
     {
@@ -33,14 +67,14 @@ public sealed class SettingsController(MainWindow view, AppSettings settings, Li
     /// <summary>"지금 업데이트 확인": 런처 릴리스와 애드온 모음을 모두 확인합니다.</summary>
     public async Task CheckNowAsync()
     {
-        view.SetSettingsStatus("확인하는 중…");
+        view.SetSettingsStatus(Loc.T("settings.checking"));
         var updates = await library.LoadAsync(fetchCatalogs: true);
         var launcher = await CheckLauncherAsync(quiet: false);
         status = launcher + "\n" + Summary(updates);
         Open();
     }
 
-    static string Summary(int addonUpdates) => addonUpdates > 0 ? $"설치한 애드온 중 {addonUpdates}개에 새 버전이 있습니다." : "설치한 애드온은 모두 최신입니다.";
+    static string Summary(int addonUpdates) => addonUpdates > 0 ? Loc.T("settings.addonUpdates", addonUpdates) : Loc.T("settings.addonLatest");
 
     /// <summary>새 런처가 있으면 머리글에 업데이트 버튼을 띄웁니다. 결과 문장을 돌려줍니다.</summary>
     async Task<string> CheckLauncherAsync(bool quiet)
@@ -49,11 +83,11 @@ public sealed class SettingsController(MainWindow view, AppSettings settings, Li
         {
             pending = await Updater.CheckAsync();
             view.ShowLauncherUpdate(pending?.Version);
-            return pending is null ? $"LXIUM {Updater.Current}은(는) 최신입니다." : $"LXIUM {pending.Version}이(가) 나왔습니다. 머리글의 업데이트 버튼을 누르세요.";
+            return pending is null ? Loc.T("settings.launcherLatest", Updater.Current) : Loc.T("settings.launcherNew", pending.Version);
         }
         catch (Exception e)
         {
-            return quiet ? "" : $"런처 업데이트를 확인하지 못했습니다: {e.Message}";
+            return quiet ? "" : Loc.T("settings.launcherFailed", e.Message);
         }
     }
 
@@ -61,27 +95,26 @@ public sealed class SettingsController(MainWindow view, AppSettings settings, Li
     public async Task ApplyUpdateAsync()
     {
         if (pending is null || Environment.ProcessPath is not string exe) return;
-        if (!view.Confirm($"LXIUM {pending.Version}으로 업데이트하고 다시 시작할까요?\n런처 설정과 받아 둔 애드온은 그대로 남습니다.")) return;
-        view.SetBusy($"LXIUM {pending.Version} 받는 중…");
-        try
+        if (!view.Confirm(Loc.T("ask.updateLauncher", pending.Version))) return;
+        using (var busy = view.StartBusy(Loc.T("busy.launcher", pending.Version)))
         {
-            await Updater.ApplyAsync(pending, AppDir, exe);
-            Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
-            view.Close();
+            try { await Updater.ApplyAsync(pending, AppDir, exe, busy); }
+            catch (Exception e)
+            {
+                view.Alert(Loc.T("err.updateFailed", e.Message));
+                return;
+            }
         }
-        catch (Exception e)
-        {
-            view.SetBusy(null);
-            view.Alert($"업데이트 실패: {e.Message}");
-        }
+        Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+        view.Close();
     }
 
     public async Task AddCatalogAsync(string url)
     {
         url = url.Trim();
-        if (!Catalogs.IsHttps(url)) { view.Alert("https:// 로 시작하는 애드온 모음 주소를 넣으세요."); return; }
+        if (!Catalogs.IsHttps(url)) { view.Alert(Loc.T("err.catalogUrl")); return; }
         if (settings.Catalogs.Contains(url)) return;
-        if (!view.Confirm("애드온은 게임 안에서 실행되는 프로그램입니다. 믿을 수 있는 사람이 만든 모음만 추가하세요.\n추가할까요?")) return;
+        if (!view.Confirm(Loc.T("ask.addCatalog"))) return;
         settings.Catalogs.Add(url);
         Save();
         await library.LoadAsync(fetchCatalogs: true);
@@ -96,11 +129,21 @@ public sealed class SettingsController(MainWindow view, AppSettings settings, Li
         Open();
     }
 
+    /// <summary>애드온 모음을 공식 모음 하나로 되돌림</summary>
+    public async Task ResetCatalogsAsync()
+    {
+        if (!view.Confirm(Loc.T("ask.resetCatalogs"))) return;
+        settings.ResetCatalogs();
+        Save();
+        await library.LoadAsync(fetchCatalogs: true);
+        Open();
+    }
+
     public void OpenLink(string url) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 
     void Save()
     {
         try { settings.Save(AppDir); }
-        catch (Exception e) { view.Alert($"설정을 저장하지 못했습니다: {e.Message}"); }
+        catch (Exception e) { view.Alert(Loc.T("err.settingsSave", e.Message)); }
     }
 }

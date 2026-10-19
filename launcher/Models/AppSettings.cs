@@ -14,6 +14,11 @@ public sealed class AppSettings
     /// <summary>시작할 때 런처 업데이트·애드온 모음을 확인</summary>
     public bool AutoUpdate { get; set; } = true;
     public List<string> Catalogs { get; set; } = [OfficialCatalog];
+    /// <summary>런처 언어 (lang/&lt;code&gt;.json). 없으면 처음 실행 때 언어 선택 화면을 보여 줌</summary>
+    public string? Language { get; set; }
+
+    /// <summary>애드온 모음을 공식 모음 하나로 되돌림</summary>
+    public void ResetCatalogs() => Catalogs = [OfficialCatalog];
 
     /// <summary>파일이 없거나 깨졌으면 기본값</summary>
     public static AppSettings Load(string dir)

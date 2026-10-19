@@ -14,28 +14,32 @@ public sealed class ConfigEntry : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public required string Key { get; init; }
+    public string Section { get; init; } = "";
+    /// <summary>화면에 보일 이름 (.lxconfig Name, 없으면 Key)</summary>
+    public string DisplayName { get; internal set; } = "";
     public string Value
     {
         get => value;
         set { this.value = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null)); }
     }
-    public string? Description { get; init; }
-    public string? Type { get; init; }
-    public string? Default { get; init; }
+    public string? Description { get; internal set; }
+    public string? Type { get; internal set; }
+    public string? Default { get; internal set; }
     /// <summary>BepInEx "Acceptable values" (열거형). 없으면 빈 배열</summary>
-    public string[] Choices { get; init; } = [];
+    public string[] Choices { get; internal set; } = [];
     /// <summary>여러 값을 쉼표로 함께 고르는 플래그 열거형 (BepInEx "Multiple values can be set")</summary>
-    public bool Flags { get; init; }
-    /// <summary>BepInEx "Acceptable value range" 등 값 범위 안내</summary>
-    public string? Range { get; init; }
+    public bool Flags { get; internal set; }
+    /// <summary>BepInEx "Acceptable value range" 등 값 범위 안내 ("From a to b")</summary>
+    public string? Range { get; internal set; }
 
-    internal int Line { get; init; }
+    /// <summary>파일의 줄 번호. -1이면 .lxconfig에만 있어 저장할 때 새로 넣는 항목</summary>
+    internal int Line { get; set; }
     internal string Prefix { get; init; } = "";
-    internal bool Quoted { get; init; }
+    internal bool Quoted { get; set; }
     internal string Original { get; set; } = "";
 
     /// <summary>편집기 종류는 처음 읽은 값으로 정합니다 (입력 중에 바뀌지 않게)</summary>
-    public bool IsBool => Type is "Boolean" || Original is "true" or "false";
+    public bool IsBool => Type is "Boolean" || (Type is null && Original is "true" or "false");
     public bool HasChoices => !IsBool && !Flags && Choices.Length > 0;
     public bool IsSlider => !IsBool && !HasChoices && !Flags && Min is not null && Max is not null && Min < Max;
     public bool IsText => !IsBool && !HasChoices && !IsSlider;
@@ -60,11 +64,14 @@ public sealed class ConfigEntry : INotifyPropertyChanged
         && double.TryParse(m.Groups[group].Value, NumberStyles.Float, Inv, out var v) ? v : null;
     public string Hint => string.Join(" · ", new[]
     {
-        Type, Range, Flags ? "쉼표로 여러 개: " + string.Join(", ", Choices) : null, Default is null ? null : $"기본값 {Default}",
+        Type, Range, Flags ? Loc.T("cfg.flags", string.Join(", ", Choices)) : null, Default is null ? null : Loc.T("cfg.default", Default),
     }.Where(s => !string.IsNullOrEmpty(s)));
 }
 
-public sealed record ConfigSection(string Name, List<ConfigEntry> Entries);
+public sealed record ConfigSection(string Name, List<ConfigEntry> Entries)
+{
+    public string DisplayName { get; internal set; } = Name;
+}
 
 /// <summary>
 /// BepInEx .cfg와 MelonLoader .cfg(TOML)의 공통 형태 "[섹션]" + "키 = 값"을 줄 단위로 읽고,
@@ -77,21 +84,26 @@ public sealed class ConfigFile
 
     public string Path { get; }
     public List<ConfigSection> Sections { get; } = [];
-    readonly string[] lines;
+    /// <summary>파일이 아직 없어 .lxconfig 기본값으로 만든 것 (저장하면 파일이 생김)</summary>
+    public bool IsNew { get; }
+    readonly List<string> lines;
     readonly string newline;
+    readonly bool toml;
 
-    ConfigFile(string path, string text)
+    ConfigFile(string path, string text, bool isNew, bool toml)
     {
         Path = path;
+        IsNew = isNew;
+        this.toml = toml;
         newline = text.Contains("\r\n") ? "\r\n" : "\n";
-        lines = text.Split(newline);
+        lines = [.. text.Split(newline)];
 
         var section = new ConfigSection("", []);
         var desc = new List<string>();
         string? type = null, def = null, range = null;
         string[] choices = [];
         var flags = false;
-        for (var i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Count; i++)
         {
             var t = lines[i].Trim();
             if (t.StartsWith('[') && t.EndsWith(']') && !t.Contains('='))
@@ -120,7 +132,7 @@ public sealed class ConfigFile
                     var value = quoted ? raw[1..^1].Replace("\\\"", "\"").Replace("\\\\", "\\") : raw;
                     section.Entries.Add(new ConfigEntry
                     {
-                        Key = m.Groups[2].Value, Value = value, Original = value, Line = i, Prefix = m.Groups[1].Value, Quoted = quoted,
+                        Key = m.Groups[2].Value, Section = section.Name, DisplayName = m.Groups[2].Value, Value = value, Original = value, Line = i, Prefix = m.Groups[1].Value, Quoted = quoted,
                         Description = desc.Count > 0 ? string.Join("\n", desc) : null, Type = type, Default = def, Choices = choices, Range = range, Flags = flags,
                     });
                 }
@@ -135,7 +147,51 @@ public sealed class ConfigFile
         if (section.Entries.Count > 0) Sections.Add(section);
     }
 
-    public static ConfigFile Load(string path) => new(path, File.ReadAllText(path));
+    public static ConfigFile Load(string path) => new(path, File.ReadAllText(path), false, IsToml(path));
+
+    /// <summary>MelonLoader(UserData) 설정은 TOML: 문자열을 따옴표로 씀</summary>
+    static bool IsToml(string path) => path.Replace('\\', '/').Contains("/UserData/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 설정 파일을 엽니다. lx가 있으면 형식·기본값·설명(lang 언어)을 .lxconfig에서 가져오고,
+    /// 파일이 없으면 .lxconfig 기본값으로 새로 만들 준비를 합니다(게임을 실행하지 않아도 편집 가능). 둘 다 없으면 null
+    /// </summary>
+    public static ConfigFile? Open(string path, LxConfig? lx, string lang)
+    {
+        ConfigFile cfg;
+        if (File.Exists(path)) cfg = Load(path);
+        else if (lx is { Settings.Count: > 0 }) cfg = new ConfigFile(path, lx.CreateFile(IsToml(path)), true, IsToml(path));
+        else return null;
+        if (lx is not null) cfg.Apply(lx, lang);
+        return cfg;
+    }
+
+    /// <summary>.lxconfig 정보를 항목에 입히고, 파일에 없는 설정은 기본값 항목으로 더합니다.</summary>
+    void Apply(LxConfig lx, string lang)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        foreach (var s in lx.Settings)
+        {
+            var section = Sections.FirstOrDefault(x => x.Name == s.Section);
+            if (section is null) Sections.Add(section = new ConfigSection(s.Section, []));
+            var e = section.Entries.FirstOrDefault(x => x.Key == s.Key);
+            if (e is null)
+            {
+                e = new ConfigEntry { Key = s.Key, Section = s.Section, Line = -1, Original = "\0", Quoted = toml && s.Type is "String" or "Enum" };
+                e.Value = s.Default;
+                section.Entries.Add(e);
+            }
+            e.Type = s.Type switch { "Bool" => "Boolean", "Int" => "Int32", "Float" => "Single", _ => s.Type };
+            e.Default = s.Default;
+            e.Choices = s.Values;
+            e.Flags = false;
+            e.Range = s.Min is double min && s.Max is double max ? $"From {min.ToString(inv)} to {max.ToString(inv)}" : null;
+            e.Description = LxConfig.Pick(s.Descriptions, lang) ?? e.Description;
+            e.DisplayName = LxConfig.Pick(s.Names, lang) ?? s.Key;
+        }
+        foreach (var section in Sections)
+            if (lx.SectionNames.TryGetValue(section.Name, out var names)) section.DisplayName = LxConfig.Pick(names, lang) ?? section.Name;
+    }
 
     /// <summary>애드온 설정 파일 (addon.md 5장): BepInEx = BepInEx/config/&lt;id&gt;.cfg, MelonLoader = UserData/&lt;id&gt;.cfg</summary>
     public static string ModConfigPath(string root, string id, string variant) =>
@@ -150,7 +206,7 @@ public sealed class ConfigFile
     };
 
     /// <summary>BepInEx 형식 정보로 확인되는 잘못된 값 ("키: 값" 목록)</summary>
-    public List<string> Invalid() => Sections.SelectMany(s => s.Entries).Where(e => !IsValid(e)).Select(e => $"{e.Key}: {e.Value}").ToList();
+    public List<string> Invalid() => Sections.SelectMany(s => s.Entries).Where(e => !IsValid(e)).Select(e => $"{e.DisplayName}: {e.Value}").ToList();
 
     static bool IsValid(ConfigEntry e)
     {
@@ -159,21 +215,45 @@ public sealed class ConfigFile
         if (e.Choices.Length > 0 && !e.Value.Split(',', StringSplitOptions.TrimEntries).All(e.Choices.Contains)) return false;
         return e.Type switch
         {
-            "Int32" or "Int64" or "Int16" or "Byte" => long.TryParse(e.Value, System.Globalization.NumberStyles.Integer, inv, out _),
-            "Single" or "Double" or "Decimal" => double.TryParse(e.Value, System.Globalization.NumberStyles.Float, inv, out _),
+            "Int32" or "Int64" or "Int16" or "Byte" => long.TryParse(e.Value, System.Globalization.NumberStyles.Integer, inv, out var n) && InRange(e, n),
+            "Single" or "Double" or "Decimal" => double.TryParse(e.Value, System.Globalization.NumberStyles.Float, inv, out var d) && InRange(e, d),
             _ => true,
         };
     }
 
-    public bool IsChanged => Sections.SelectMany(s => s.Entries).Any(e => e.Value != e.Original);
+    static bool InRange(ConfigEntry e, double v) => (e.Min is not double min || v >= min) && (e.Max is not double max || v <= max);
 
-    /// <summary>바뀐 값의 줄만 다시 씁니다. 따옴표로 감싸져 있던 값은 따옴표·이스케이프를 유지합니다.</summary>
+    public bool IsChanged => IsNew || Sections.SelectMany(s => s.Entries).Any(e => e.Value != e.Original);
+
+    /// <summary>
+    /// 바뀐 값의 줄만 다시 씁니다. 따옴표로 감싸져 있던 값은 따옴표·이스케이프를 유지합니다.
+    /// .lxconfig에만 있던 항목은 그 섹션의 마지막 항목 뒤(섹션이 없으면 파일 끝)에 넣습니다.
+    /// </summary>
     public void Save()
     {
         var changed = Sections.SelectMany(s => s.Entries).Where(e => e.Value != e.Original).ToList();
-        foreach (var e in changed)
-            lines[e.Line] = e.Prefix + (e.Quoted ? "\"" + e.Value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"" : e.Value);
+        foreach (var e in changed.Where(e => e.Line >= 0))
+            lines[e.Line] = e.Prefix + Format(e);
+        foreach (var e in changed.Where(e => e.Line < 0))
+        {
+            var last = Sections.First(s => s.Name == e.Section).Entries.Where(x => x.Line >= 0).Select(x => x.Line).DefaultIfEmpty(-1).Max();
+            if (last < 0)
+            {
+                // 새 섹션은 파일 끝에. 파일이 줄바꿈으로 끝났으면 그 줄바꿈은 맨 끝에 그대로 둠
+                var end = lines.Count > 0 && lines[^1] == "" ? lines.Count - 1 : lines.Count;
+                List<string> block = end > 0 && lines[end - 1] != "" ? ["", $"[{e.Section}]"] : [$"[{e.Section}]"];
+                lines.InsertRange(end, block);
+                last = end + block.Count - 1;
+            }
+            var at = last + 1;
+            lines.Insert(at, $"{e.Key} = {Format(e)}");
+            foreach (var other in Sections.SelectMany(s => s.Entries).Where(x => x.Line >= at)) other.Line++;
+            e.Line = at;
+        }
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
         File.WriteAllText(Path, string.Join(newline, lines), new UTF8Encoding(false));
         foreach (var e in changed) e.Original = e.Value;
     }
+
+    static string Format(ConfigEntry e) => e.Quoted ? "\"" + e.Value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"" : e.Value;
 }

@@ -12,6 +12,7 @@ public partial class ConfigWindow : Window
         Title = heading;
         Heading.Text = heading;
         FilePath.Text = config.Path;
+        NewNotice.Visibility = config.IsNew ? Visibility.Visible : Visibility.Collapsed;
         SectionList.ItemsSource = config.Sections;
     }
 
