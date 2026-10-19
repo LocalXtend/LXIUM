@@ -24,6 +24,7 @@
 |---|---|
 | `Loc` | 언어. `Loc.T(키, 인자…)`, `Loc.I[키]`, `Load(appDir, code)`가 `Item[]` 변경 알림 → 화면 문구 바로 바뀜. 키가 없으면 ko, 그래도 없으면 키 |
 | `Addon` | zip의 `lxium.json` 읽기·검증(`Validate`, 태그 거르기), `addon.png` 꺼내기(`ExtractIcon` → `cache/icons`), `<id>.lxconfig` 읽기 |
+| `Foreign` | 직접 넣은 외부 형식 알아보기 (ManosabaLoader zip, .msmod) → `cache/converted`의 LXIUM zip (`addon.md` 10장) |
 | `Catalog` (`Catalogs`) | `catalog.md`. 고정·GitHub·외부 항목 해석, GitHub 릴리스 ETag 캐시(`cache/github`), 받기 → sha256 → (외부면 `Repackage`) → id·version 확인 |
 | `Game` | `AddonVersion`(Local 또는 Remote) → `AddonPackage`(같은 id, 최신순, `IsAdded`) → `Game`(Steam 앱 ID, 없으면 game.id로 묶음, replaces로 대신된 패키지 숨김) |
 | `AddonRow` | 모드 패널 한 줄. `IsAdded`(받아 둠 또는 설치됨), `Selected` 버전, `InstallLabel`(추가·설치·업데이트·이 버전으로·재설치), `Compat`, `Icon`, `TagNames`, `Matches(검색, 태그)` |
@@ -47,6 +48,7 @@
   - 설정 → `GamePage` (게임 정보, 폴더·실행, 로더 설치·업데이트·제거·설정, 충돌 경고, 모드 패널 바로 가기)
   - 모드 → `ModsPage` (검색·태그, 추가한 모드 / 모드 추가하기, 충돌 경고, 게임 설정 패널로)
   - 플레이 → `steam://rungameid/<id>`
+- 모드 패널 "파일에서 추가": 고른 파일을 `Addon.TryRead`로 확인 → `addons/`에 복사 → 목록 다시 만들기. 알아보지 못한 파일은 복사하지 않고 알림
 - 모드 주 버튼: 추가 안 함 → 받기만(`addons/`). 추가함 → requires → 로더(없으면 확인 후 설치) → 변형 → minLoaderVersion 경고 → (Remote면) 받기 → 설치(백그라운드)
 - 오래 걸리는 작업(받기·설치·제거·로더·런처 업데이트)은 모두 `StartBusy`로 덮개 + 진행률, 파일 작업은 `Task.Run`
 - 모드 설정: 설치한 버전 zip(없으면 아무 받아 둔 zip)의 `.lxconfig` + `addon.md` 5장 6번 경로 → `ConfigWindow`

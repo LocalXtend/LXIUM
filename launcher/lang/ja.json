@@ -1,17 +1,14 @@
 {
   "_name": "日本語",
   "app.subtitle": "ゲームMODランチャー",
-
   "nav.library": "ライブラリ",
   "nav.refresh": "更新（ゲームとアドオンカタログを再確認）",
   "nav.settings": "設定",
   "page.game": "{0} · 設定",
   "page.mods": "{0} · MOD",
-
   "zone.settings": "設定",
   "zone.mods": "MOD",
   "zone.play": "プレイ",
-
   "lib.loading": "ゲームを探しています…",
   "lib.loadingCatalogs": "ゲームとアドオンカタログを確認しています…",
   "lib.empty": "インストール済みのゲームにMODがありません。設定でアドオンカタログを追加するか、addonsフォルダにアドオンのzipを入れてください。",
@@ -20,7 +17,6 @@
   "lib.installed": "MOD導入済み",
   "lib.available": "MODあり",
   "lib.refresh": "更新",
-
   "game.title": "ゲーム",
   "game.desc": "Steamライブラリで見つかったゲームフォルダです。",
   "game.play": "ゲームを起動",
@@ -34,7 +30,6 @@
   "game.storeFailed": "Steamストアの情報を取得できませんでした: {0}",
   "game.notFound": "Steamライブラリでゲームが見つかりません。ゲームをインストールしてから更新してください。",
   "game.modSummary": "導入済みMOD {0}個 · このゲームのMOD {1}個",
-
   "loader.title": "MODローダー",
   "loader.none": "ローダーなし",
   "loader.install": "{0}をインストール",
@@ -47,7 +42,6 @@
   "loader.hintMany": "ローダーが複数あります。MODを入れるローダーを選んでください。",
   "loader.conflict": "複数のローダーが一緒に入っていて競合する可能性があります（{0}）。1つだけ残してください。",
   "loader.conflictBep": "BepInEx 5と6が両方入っています（{0}）。同じフォルダを使うためMODが正しく動きません。1つだけ残してください。",
-
   "mods.title": "MOD",
   "mods.open": "MODパネルを開く",
   "mods.search": "名前や説明で検索",
@@ -57,7 +51,6 @@
   "mods.available": "MODを追加",
   "mods.availableDesc": "アドオンカタログで見つかったMODです。追加するとダウンロードされ、インストールは別に行います。",
   "mods.availableEmpty": "追加できるMODがありません。設定でアドオンカタログを確認してください。",
-
   "mod.add": "追加",
   "mod.install": "インストール",
   "mod.update": "アップデート",
@@ -72,17 +65,14 @@
   "mod.untracked": "記録なしで導入済み",
   "mod.installed": "v{0} 導入済み · {1}",
   "mod.newer": "v{0} あり",
-
   "compat.needLoader": "ローダーが必要: {0}（インストール時に一緒に導入）",
   "compat.mismatch": "今のローダー（{0}）に合いません。必要: {1}",
   "compat.oldLoader": "{0} {1}以上を推奨（現在 {2}）",
-
   "tag.performance": "パフォーマンス",
   "tag.utility": "ユーティリティ",
   "tag.fun": "おもしろ",
   "tag.story": "ストーリー",
   "tag.msmod": "msmod",
-
   "busy.wait": "しばらくお待ちください",
   "busy.download": "{0} v{1} をダウンロード中…",
   "busy.install": "{0} v{1} をインストール中…",
@@ -91,7 +81,6 @@
   "busy.checkLoader": "{0} の最新版を確認中…",
   "busy.removeLoader": "{0} を削除中…",
   "busy.launcher": "LXIUM {0} をダウンロード中…",
-
   "ask.installLoader": "{0}には{1}が必要です。{1}をインストールしてからMODをインストールしますか？",
   "ask.requires": "{0}には先に{1}が必要です。{1}からインストールしますか？",
   "ask.oldLoader": "{0} {1}は推奨最小バージョン{2}より古いです。それでもインストールしますか？",
@@ -100,10 +89,8 @@
   "ask.updateLauncher": "LXIUM {0}に更新して再起動しますか？\nランチャーの設定とダウンロード済みのアドオンはそのまま残ります。",
   "ask.addCatalog": "アドオンはゲーム内で動くプログラムです。信頼できる人が作ったカタログだけを追加してください。\n追加しますか？",
   "ask.resetCatalogs": "アドオンカタログを公式カタログだけに戻しますか？追加した他のカタログは一覧から外れます。",
-
   "done.loader": "{0} {1}をインストールしました。\nゲームを一度起動すると、ローダーが初回の準備を終えます。",
   "done.loaderLatest": "{0}は最新です。",
-
   "config.modTitle": "{0} の設定",
   "config.restart": "変更はゲームを再起動すると反映されます。ゲームを起動中なら終了してから保存してください。",
   "config.newNotice": "まだ設定ファイルがないため、初期値を表示しています。保存するとゲームを起動しなくても設定ファイルが作られます。",
@@ -113,7 +100,6 @@
   "switch.off": "無効",
   "common.save": "保存",
   "common.cancel": "キャンセル",
-
   "settings.update": "アップデート",
   "settings.version": "現在のバージョン: LXIUM {0}",
   "settings.autoUpdate": "アップデートを自動で確認",
@@ -136,10 +122,8 @@
   "settings.catalogRemove": "カタログを外す",
   "settings.catalogReset": "初期設定に戻す",
   "settings.catalogErrors": "取得できなかったカタログ・項目:",
-
   "update.button": "LXIUM {0} に更新",
   "lang.next": "次へ",
-
   "err.manifestMissing": "lxium.jsonがありません",
   "err.manifestEmpty": "内容が空です",
   "err.schema": "未対応のschema {0}です。ランチャーを更新してください",
@@ -165,7 +149,7 @@
   "err.downloadFailed": "ダウンロード失敗: {0}",
   "err.installFailed": "インストール失敗: {0}\nゲームを起動中なら終了してからもう一度試してください。",
   "err.uninstallFailed": "削除失敗: {0}\nゲームを起動中なら終了してからもう一度試してください。",
-  "err.requiresMissing": "{0}に必要なMOD {1}がアドオンカタログで見つかりません。",
+  "err.requiresMissing": "{0}には{1}が必要です。先にアドオンカタログかaddonsフォルダ（ファイルから追加）に{1}を入れてください。",
   "err.configMissing": "まだ設定ファイルがなく、このMODには設定の説明（.lxconfig）もありません。ゲームを一度起動すると作られます。",
   "err.configRead": "設定ファイルを読めませんでした: {0}",
   "err.configInvalid": "形式または範囲に合わない値があります。",
@@ -173,5 +157,10 @@
   "err.catalogUrl": "https:// で始まるカタログのアドレスを入れてください。",
   "err.settingsSave": "設定を保存できませんでした: {0}",
   "err.updateFailed": "アップデート失敗: {0}",
-  "err.updateNoExe": "アップデートファイルに{0}がありません。"
+  "err.updateNoExe": "アップデートファイルに{0}がありません。",
+  "mods.addFile": "ファイルから追加",
+  "mods.addFileHint": "自分でダウンロードしたMODファイルを追加します: LXIUMアドオンのzip、ManosabaLoaderの配布zip、.msmod",
+  "mods.fileFilter": "MODファイル",
+  "busy.addFiles": "MODファイルを読み込んでいます…",
+  "err.unrecognized": "認識できないファイルのため追加しませんでした:"
 }

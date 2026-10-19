@@ -60,4 +60,11 @@ public partial class ModsPage : UserControl
     async void Uninstall_Click(object sender, RoutedEventArgs e) => await Main.Controller.UninstallAsync(Item(sender));
     void Config_Click(object sender, RoutedEventArgs e) => Main.Controller.OpenModConfig(Item(sender));
     async void GameSettings_Click(object sender, RoutedEventArgs e) => await Main.Controller.ShowGameAsync();
+
+    /// <summary>모드 파일 고르기 (LXIUM zip, ManosabaLoader zip, .msmod)</summary>
+    async void AddFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog { Multiselect = true, Filter = $"{Loc.T("mods.fileFilter")} (*.zip;*.msmod)|*.zip;*.msmod" };
+        if (dialog.ShowDialog(Main) == true) await Main.Controller.AddFilesAsync(dialog.FileNames);
+    }
 }

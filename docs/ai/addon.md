@@ -150,6 +150,19 @@ UTF-8 JSON. 주석 금지.
 - [ ] `.lxconfig`의 섹션·키·기본값이 코드의 설정 등록과 같음
 - [ ] 변형마다 해당 로더가 설치된 게임에 넣고 실행 → 로더 로그에 모드 로드 확인
 
+## 10. 직접 넣은 외부 형식 (런처가 알아보는 것)
+
+사용자가 직접 받은 파일을 `addons/`에 넣거나 모드 패널 "파일에서 추가"로 고르면, LXIUM zip이 아니어도 아래 형식은 런처(`launcher/Models/Foreign.cs`)가 알아봅니다. 모음 등록과 상관없음 (제작자 동의 없이 공식 모음에 넣지 않음, `catalog.md` 4장).
+
+| 형식 | 알아보는 기준 | 바꾼 애드온 |
+|---|---|---|
+| ManosabaLoader 배포 zip | zip 안 `BepInEx/plugins/ManosabaLoader/ManosabaLoader.dll` | id `ManosabaLoader`, 게임 마녀재판(3101040), 변형 `bepinex6`(min `6.0.0-be.785`), 플러그인 폴더만 (BepInEx·`dotnet/`·설정 제외), 버전 = DLL 제품 버전 → 없으면 파일 이름 `_V2_1_0`, 태그 `msmod` `utility` |
+| `.msmod` 파일 | 확장자 | id `msmod.<이름>-<해시>`, 이름 = 파일 이름, 버전 = 파일 수정 날짜 `년.월.일`, `bepinex6/ManosabaMod/<파일>`, `requires: ["ManosabaLoader"]`, 태그 `msmod` |
+
+- 원본 파일은 바꾸지 않고, 바꾼 zip은 `cache/converted/<id>-<버전>-<크기>-<수정시각>.zip`에 둠 (원본이 그대로면 다시 만들지 않음)
+- 알아보지 못한 파일은 "파일에서 추가" 때 복사하지 않고 알림, `addons/`에 있으면 건너뜀
+- 새 외부 형식은 이 표와 `Foreign.Recognize`에 같은 커밋에서 더함
+
 ## 9. 규격 변경
 
 - 이 문서와 `../human/addon.md`를 같은 커밋에서 고침

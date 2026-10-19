@@ -1,17 +1,14 @@
 {
   "_name": "English",
   "app.subtitle": "Game mod launcher",
-
   "nav.library": "Library",
   "nav.refresh": "Refresh (games and add-on catalogs)",
   "nav.settings": "Settings",
   "page.game": "{0} · Settings",
   "page.mods": "{0} · Mods",
-
   "zone.settings": "Settings",
   "zone.mods": "Mods",
   "zone.play": "Play",
-
   "lib.loading": "Looking for games…",
   "lib.loadingCatalogs": "Checking games and add-on catalogs…",
   "lib.empty": "None of your installed games have mods. Add an add-on catalog in Settings, or put add-on zips in the addons folder.",
@@ -20,7 +17,6 @@
   "lib.installed": "Mods installed",
   "lib.available": "Mods available",
   "lib.refresh": "Refresh",
-
   "game.title": "Game",
   "game.desc": "Game folder found in your Steam library.",
   "game.play": "Play",
@@ -34,7 +30,6 @@
   "game.storeFailed": "Couldn't load Steam store details: {0}",
   "game.notFound": "The game wasn't found in your Steam library. Install it, then refresh.",
   "game.modSummary": "{0} mods installed · {1} mods for this game",
-
   "loader.title": "Mod loader",
   "loader.none": "No loader",
   "loader.install": "Install {0}",
@@ -47,7 +42,6 @@
   "loader.hintMany": "Several loaders are installed. Pick the one to install mods with.",
   "loader.conflict": "These loaders are installed together and may conflict ({0}). Keep only one.",
   "loader.conflictBep": "BepInEx 5 and 6 are both installed ({0}). They share a folder, so mods won't work properly. Keep only one.",
-
   "mods.title": "Mods",
   "mods.open": "Open mod panel",
   "mods.search": "Search by name or description",
@@ -57,7 +51,6 @@
   "mods.available": "Add mods",
   "mods.availableDesc": "Mods found in your add-on catalogs. Adding downloads a mod; installing is a separate step.",
   "mods.availableEmpty": "No mods to add. Check your add-on catalogs in Settings.",
-
   "mod.add": "Add",
   "mod.install": "Install",
   "mod.update": "Update",
@@ -72,17 +65,14 @@
   "mod.untracked": "Installed outside LXIUM",
   "mod.installed": "v{0} installed · {1}",
   "mod.newer": "v{0} available",
-
   "compat.needLoader": "Needs a loader: {0} (installed along with the mod)",
   "compat.mismatch": "Doesn't match the current loader ({0}). Needs: {1}",
   "compat.oldLoader": "{0} {1} or newer recommended (you have {2})",
-
   "tag.performance": "Performance",
   "tag.utility": "Utility",
   "tag.fun": "Fun",
   "tag.story": "Story",
   "tag.msmod": "msmod",
-
   "busy.wait": "Please wait",
   "busy.download": "Downloading {0} v{1}…",
   "busy.install": "Installing {0} v{1}…",
@@ -91,7 +81,6 @@
   "busy.checkLoader": "Checking the latest {0}…",
   "busy.removeLoader": "Removing {0}…",
   "busy.launcher": "Downloading LXIUM {0}…",
-
   "ask.installLoader": "{0} needs {1}. Install {1}, then the mod?",
   "ask.requires": "{0} needs {1} first. Install {1} now?",
   "ask.oldLoader": "{0} {1} is older than the recommended {2}. Install anyway?",
@@ -100,10 +89,8 @@
   "ask.updateLauncher": "Update to LXIUM {0} and restart?\nYour launcher settings and downloaded add-ons stay.",
   "ask.addCatalog": "Add-ons run inside the game. Only add catalogs from people you trust.\nAdd it?",
   "ask.resetCatalogs": "Reset add-on catalogs to just the official one? Other catalogs you added will be removed from the list.",
-
   "done.loader": "{0} {1} is installed.\nRun the game once so the loader can finish its first-time setup.",
   "done.loaderLatest": "{0} is up to date.",
-
   "config.modTitle": "{0} settings",
   "config.restart": "Changes apply the next time the game starts. If the game is running, close it before saving.",
   "config.newNotice": "There's no settings file yet, so defaults are shown. Saving creates the file without running the game.",
@@ -113,7 +100,6 @@
   "switch.off": "Disabled",
   "common.save": "Save",
   "common.cancel": "Cancel",
-
   "settings.update": "Updates",
   "settings.version": "Current version: LXIUM {0}",
   "settings.autoUpdate": "Check for updates automatically",
@@ -136,10 +122,8 @@
   "settings.catalogRemove": "Remove catalog",
   "settings.catalogReset": "Reset to default",
   "settings.catalogErrors": "Catalogs or items that couldn't be loaded:",
-
   "update.button": "Update to LXIUM {0}",
   "lang.next": "Next",
-
   "err.manifestMissing": "lxium.json is missing",
   "err.manifestEmpty": "The file is empty",
   "err.schema": "Unsupported schema {0}. Update the launcher",
@@ -165,7 +149,7 @@
   "err.downloadFailed": "Download failed: {0}",
   "err.installFailed": "Install failed: {0}\nIf the game is running, close it and try again.",
   "err.uninstallFailed": "Remove failed: {0}\nIf the game is running, close it and try again.",
-  "err.requiresMissing": "Couldn't find {1}, which {0} needs, in your add-on catalogs.",
+  "err.requiresMissing": "{0} needs {1}. Add {1} first from an add-on catalog or the addons folder (Add from file).",
   "err.configMissing": "There's no settings file yet, and this mod has no settings description (.lxconfig). Run the game once to create it.",
   "err.configRead": "Couldn't read the settings file: {0}",
   "err.configInvalid": "Some values have the wrong format or are out of range.",
@@ -173,5 +157,10 @@
   "err.catalogUrl": "Enter a catalog address starting with https://",
   "err.settingsSave": "Couldn't save settings: {0}",
   "err.updateFailed": "Update failed: {0}",
-  "err.updateNoExe": "The update doesn't contain {0}."
+  "err.updateNoExe": "The update doesn't contain {0}.",
+  "mods.addFile": "Add from file",
+  "mods.addFileHint": "Add a mod file you downloaded yourself: an LXIUM add-on zip, a ManosabaLoader release zip, or a .msmod",
+  "mods.fileFilter": "Mod files",
+  "busy.addFiles": "Reading mod files…",
+  "err.unrecognized": "These files weren't recognized and weren't added:"
 }

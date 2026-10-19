@@ -1,17 +1,14 @@
 {
   "_name": "한국어",
   "app.subtitle": "게임 모드 런처",
-
   "nav.library": "라이브러리",
   "nav.refresh": "새로 고침 (게임·애드온 모음 다시 확인)",
   "nav.settings": "설정",
   "page.game": "{0} · 설정",
   "page.mods": "{0} · 모드",
-
   "zone.settings": "설정",
   "zone.mods": "모드",
   "zone.play": "플레이",
-
   "lib.loading": "게임을 찾는 중…",
   "lib.loadingCatalogs": "게임과 애드온 모음을 확인하는 중…",
   "lib.empty": "설치된 게임 중 모드가 있는 게임이 없습니다. 설정에서 애드온 모음을 추가하거나 addons 폴더에 애드온 zip을 넣으세요.",
@@ -20,7 +17,6 @@
   "lib.installed": "모드 설치됨",
   "lib.available": "모드 있음",
   "lib.refresh": "새로 고침",
-
   "game.title": "게임",
   "game.desc": "Steam 라이브러리에서 찾은 게임 폴더입니다.",
   "game.play": "게임 실행",
@@ -34,7 +30,6 @@
   "game.storeFailed": "Steam 상점 정보를 가져오지 못했습니다: {0}",
   "game.notFound": "Steam 라이브러리에서 게임을 찾지 못했습니다. 게임을 설치한 뒤 새로 고침하세요.",
   "game.modSummary": "설치한 모드 {0}개 · 이 게임의 모드 {1}개",
-
   "loader.title": "모드 로더",
   "loader.none": "로더 없음",
   "loader.install": "{0} 설치",
@@ -47,7 +42,6 @@
   "loader.hintMany": "로더가 여러 개 있습니다. 모드를 설치할 로더를 고르세요.",
   "loader.conflict": "로더가 함께 설치되어 있어 서로 부딪칠 수 있습니다 ({0}). 하나만 남기고 제거하세요.",
   "loader.conflictBep": "BepInEx 5와 6이 함께 설치되어 있습니다 ({0}). 같은 폴더를 써서 모드가 제대로 동작하지 않습니다. 하나만 남기세요.",
-
   "mods.title": "모드",
   "mods.open": "모드 패널 열기",
   "mods.search": "모드 이름·설명으로 찾기",
@@ -57,7 +51,6 @@
   "mods.available": "모드 추가하기",
   "mods.availableDesc": "애드온 모음에서 찾은 모드입니다. 추가하면 받아 두고, 설치는 따로 합니다.",
   "mods.availableEmpty": "추가할 수 있는 모드가 없습니다. 설정에서 애드온 모음을 확인하세요.",
-
   "mod.add": "추가",
   "mod.install": "설치",
   "mod.update": "업데이트",
@@ -72,17 +65,14 @@
   "mod.untracked": "기록 없이 설치됨",
   "mod.installed": "v{0} 설치됨 · {1}",
   "mod.newer": "v{0} 있음",
-
   "compat.needLoader": "로더 필요: {0} (설치할 때 함께 설치)",
   "compat.mismatch": "지금 로더({0})와 맞지 않음. 필요: {1}",
   "compat.oldLoader": "{0} {1} 이상 권장 (지금 {2})",
-
   "tag.performance": "성능",
   "tag.utility": "유틸리티",
   "tag.fun": "재미",
   "tag.story": "스토리",
   "tag.msmod": "msmod",
-
   "busy.wait": "잠시만 기다려 주세요",
   "busy.download": "{0} v{1} 받는 중…",
   "busy.install": "{0} v{1} 설치하는 중…",
@@ -91,7 +81,6 @@
   "busy.checkLoader": "{0} 최신 버전 확인 중…",
   "busy.removeLoader": "{0} 제거하는 중…",
   "busy.launcher": "LXIUM {0} 받는 중…",
-
   "ask.installLoader": "{0}에는 {1}가 필요합니다. {1}를 설치한 뒤 모드를 설치할까요?",
   "ask.requires": "{0}에는 {1}가 먼저 필요합니다. {1}부터 설치할까요?",
   "ask.oldLoader": "{0} {1}은(는) 권장 최소 버전 {2}보다 낮습니다. 그래도 설치할까요?",
@@ -100,10 +89,8 @@
   "ask.updateLauncher": "LXIUM {0}으로 업데이트하고 다시 시작할까요?\n런처 설정과 받아 둔 애드온은 그대로 남습니다.",
   "ask.addCatalog": "애드온은 게임 안에서 실행되는 프로그램입니다. 믿을 수 있는 사람이 만든 모음만 추가하세요.\n추가할까요?",
   "ask.resetCatalogs": "애드온 모음을 공식 모음 하나로 되돌릴까요? 추가한 다른 모음은 목록에서 빠집니다.",
-
   "done.loader": "{0} {1}을(를) 설치했습니다.\n게임을 한 번 실행하면 로더가 처음 준비를 마칩니다.",
   "done.loaderLatest": "{0}은(는) 최신입니다.",
-
   "config.modTitle": "{0} 설정",
   "config.restart": "바꾼 설정은 게임을 다시 시작하면 적용됩니다. 게임이 실행 중이면 끈 뒤 저장하세요.",
   "config.newNotice": "아직 설정 파일이 없어 기본값으로 보여 줍니다. 저장하면 게임을 실행하지 않아도 설정 파일이 만들어집니다.",
@@ -113,7 +100,6 @@
   "switch.off": "비활성화",
   "common.save": "저장",
   "common.cancel": "취소",
-
   "settings.update": "업데이트",
   "settings.version": "지금 버전: LXIUM {0}",
   "settings.autoUpdate": "업데이트 자동 확인",
@@ -136,10 +122,8 @@
   "settings.catalogRemove": "모음 빼기",
   "settings.catalogReset": "기본값으로 되돌리기",
   "settings.catalogErrors": "받지 못한 모음·항목:",
-
   "update.button": "LXIUM {0} 업데이트",
   "lang.next": "다음",
-
   "err.manifestMissing": "lxium.json이 없습니다",
   "err.manifestEmpty": "내용이 비어 있습니다",
   "err.schema": "지원하지 않는 schema {0}입니다. 런처를 업데이트하세요",
@@ -165,7 +149,7 @@
   "err.downloadFailed": "받기 실패: {0}",
   "err.installFailed": "설치 실패: {0}\n게임이 실행 중이면 끄고 다시 시도하세요.",
   "err.uninstallFailed": "제거 실패: {0}\n게임이 실행 중이면 끄고 다시 시도하세요.",
-  "err.requiresMissing": "{0}에 필요한 모드 {1}를 애드온 모음에서 찾지 못했습니다.",
+  "err.requiresMissing": "{0}에는 {1}가 필요합니다. 애드온 모음이나 addons 폴더(파일에서 추가)에 {1}를 먼저 넣어 주세요.",
   "err.configMissing": "설정 파일이 아직 없고, 이 모드에는 설정 설명(.lxconfig)도 없습니다. 게임을 한 번 실행하면 만들어집니다.",
   "err.configRead": "설정 파일을 읽지 못했습니다: {0}",
   "err.configInvalid": "형식이나 범위에 맞지 않는 값이 있습니다.",
@@ -173,5 +157,10 @@
   "err.catalogUrl": "https:// 로 시작하는 애드온 모음 주소를 넣으세요.",
   "err.settingsSave": "설정을 저장하지 못했습니다: {0}",
   "err.updateFailed": "업데이트 실패: {0}",
-  "err.updateNoExe": "업데이트 파일에 {0}이 없습니다."
+  "err.updateNoExe": "업데이트 파일에 {0}이 없습니다.",
+  "mods.addFile": "파일에서 추가",
+  "mods.addFileHint": "직접 받은 모드 파일을 추가합니다: LXIUM 애드온 zip, ManosabaLoader 배포 zip, .msmod",
+  "mods.fileFilter": "모드 파일",
+  "busy.addFiles": "모드 파일을 읽는 중…",
+  "err.unrecognized": "알아볼 수 없는 파일이라 추가하지 않았습니다:"
 }

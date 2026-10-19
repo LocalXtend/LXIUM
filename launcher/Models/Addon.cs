@@ -53,14 +53,30 @@ public sealed record Addon(string ZipPath, Manifest Manifest)
         return m with { Tags = m.Tags?.Where(KnownTags.Contains).Distinct().ToArray() };
     }
 
-    /// <summary>읽을 수 없는 zip은 건너뜁니다.</summary>
-    public static List<Addon> LoadAll(string dir)
+    /// <summary>
+    /// addons/의 애드온. LXIUM zip(lxium.json)을 먼저 보고, 아니면 cacheDir가 있을 때 아는 외부 형식(<see cref="Foreign"/>:
+    /// ManosabaLoader zip, .msmod)으로 알아봄. 읽을 수 없는 파일은 건너뜁니다.
+    /// </summary>
+    public static List<Addon> LoadAll(string dir, string? cacheDir = null)
     {
         var list = new List<Addon>();
         if (!Directory.Exists(dir)) return list;
-        foreach (var zip in Directory.EnumerateFiles(dir, "*.zip"))
-            try { list.Add(Load(zip)); } catch (Exception) { }
+        foreach (var file in Directory.EnumerateFiles(dir))
+        {
+            var ext = Path.GetExtension(file).ToLowerInvariant();
+            if (ext is not (".zip" or ".msmod")) continue;
+            if (ext == ".zip")
+                try { list.Add(Load(file)); continue; } catch (Exception) { }
+            if (cacheDir is not null && Foreign.Recognize(file, cacheDir) is { } foreign) list.Add(foreign);
+        }
         return list;
+    }
+
+    /// <summary>파일 하나를 애드온으로 읽을 수 있으면 그 애드온, 아니면 null (파일에서 추가할 때 확인)</summary>
+    public static Addon? TryRead(string file, string cacheDir)
+    {
+        try { return Load(file); } catch (Exception) { }
+        return Foreign.Recognize(file, cacheDir);
     }
 
     /// <summary>zip 루트의 addon.png를 cacheDir에 꺼내 경로를 돌려줍니다. 없으면 null</summary>

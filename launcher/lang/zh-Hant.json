@@ -1,17 +1,14 @@
 {
   "_name": "繁體中文",
   "app.subtitle": "遊戲模組啟動器",
-
   "nav.library": "遊戲庫",
   "nav.refresh": "重新整理（重新檢查遊戲與附加元件目錄）",
   "nav.settings": "設定",
   "page.game": "{0} · 設定",
   "page.mods": "{0} · 模組",
-
   "zone.settings": "設定",
   "zone.mods": "模組",
   "zone.play": "開始遊戲",
-
   "lib.loading": "正在尋找遊戲…",
   "lib.loadingCatalogs": "正在檢查遊戲與附加元件目錄…",
   "lib.empty": "已安裝的遊戲中沒有可用的模組。請在設定中新增附加元件目錄，或把附加元件 zip 放進 addons 資料夾。",
@@ -20,7 +17,6 @@
   "lib.installed": "已安裝模組",
   "lib.available": "有模組",
   "lib.refresh": "重新整理",
-
   "game.title": "遊戲",
   "game.desc": "在 Steam 遊戲庫中找到的遊戲資料夾。",
   "game.play": "啟動遊戲",
@@ -34,7 +30,6 @@
   "game.storeFailed": "無法取得 Steam 商店資訊：{0}",
   "game.notFound": "在 Steam 遊戲庫中找不到此遊戲。安裝遊戲後請重新整理。",
   "game.modSummary": "已安裝模組 {0} 個 · 本遊戲的模組 {1} 個",
-
   "loader.title": "模組載入器",
   "loader.none": "無載入器",
   "loader.install": "安裝 {0}",
@@ -47,7 +42,6 @@
   "loader.hintMany": "裝有多個載入器。請選擇安裝模組用的載入器。",
   "loader.conflict": "同時裝有多個載入器，可能互相衝突（{0}）。請只保留一個。",
   "loader.conflictBep": "同時裝有 BepInEx 5 與 6（{0}）。兩者使用同一個資料夾，模組無法正常運作。請只保留一個。",
-
   "mods.title": "模組",
   "mods.open": "開啟模組面板",
   "mods.search": "依名稱或說明搜尋",
@@ -57,7 +51,6 @@
   "mods.available": "新增模組",
   "mods.availableDesc": "在附加元件目錄中找到的模組。新增會先下載，安裝需另外進行。",
   "mods.availableEmpty": "沒有可新增的模組。請在設定中檢查附加元件目錄。",
-
   "mod.add": "新增",
   "mod.install": "安裝",
   "mod.update": "更新",
@@ -72,17 +65,14 @@
   "mod.untracked": "無記錄安裝",
   "mod.installed": "已安裝 v{0} · {1}",
   "mod.newer": "有 v{0}",
-
   "compat.needLoader": "需要載入器：{0}（安裝時一併安裝）",
   "compat.mismatch": "與目前的載入器（{0}）不符。需要：{1}",
   "compat.oldLoader": "建議 {0} {1} 或更新（目前 {2}）",
-
   "tag.performance": "效能",
   "tag.utility": "實用",
   "tag.fun": "娛樂",
   "tag.story": "劇情",
   "tag.msmod": "msmod",
-
   "busy.wait": "請稍候",
   "busy.download": "正在下載 {0} v{1}…",
   "busy.install": "正在安裝 {0} v{1}…",
@@ -91,7 +81,6 @@
   "busy.checkLoader": "正在檢查 {0} 最新版本…",
   "busy.removeLoader": "正在移除 {0}…",
   "busy.launcher": "正在下載 LXIUM {0}…",
-
   "ask.installLoader": "{0} 需要 {1}。要先安裝 {1} 再安裝模組嗎？",
   "ask.requires": "{0} 需要先安裝 {1}。現在安裝 {1} 嗎？",
   "ask.oldLoader": "{0} {1} 低於建議的最低版本 {2}。仍要安裝嗎？",
@@ -100,10 +89,8 @@
   "ask.updateLauncher": "更新到 LXIUM {0} 並重新啟動？\n啟動器設定與已下載的附加元件會保留。",
   "ask.addCatalog": "附加元件會在遊戲中執行。請只新增可信任的人製作的目錄。\n要新增嗎？",
   "ask.resetCatalogs": "要把附加元件目錄恢復為只有官方目錄嗎？你新增的其他目錄會從清單中移除。",
-
   "done.loader": "已安裝 {0} {1}。\n請先啟動一次遊戲，讓載入器完成首次準備。",
   "done.loaderLatest": "{0} 已是最新版本。",
-
   "config.modTitle": "{0} 設定",
   "config.restart": "變更會在下次啟動遊戲時生效。如果遊戲正在執行，請先關閉再儲存。",
   "config.newNotice": "還沒有設定檔，因此顯示預設值。儲存後不必啟動遊戲也會建立設定檔。",
@@ -113,7 +100,6 @@
   "switch.off": "停用",
   "common.save": "儲存",
   "common.cancel": "取消",
-
   "settings.update": "更新",
   "settings.version": "目前版本：LXIUM {0}",
   "settings.autoUpdate": "自動檢查更新",
@@ -136,10 +122,8 @@
   "settings.catalogRemove": "移除目錄",
   "settings.catalogReset": "恢復預設",
   "settings.catalogErrors": "未能取得的目錄或項目：",
-
   "update.button": "更新到 LXIUM {0}",
   "lang.next": "下一步",
-
   "err.manifestMissing": "缺少 lxium.json",
   "err.manifestEmpty": "內容為空",
   "err.schema": "不支援的 schema {0}，請更新啟動器",
@@ -165,7 +149,7 @@
   "err.downloadFailed": "下載失敗：{0}",
   "err.installFailed": "安裝失敗：{0}\n如果遊戲正在執行，請關閉後再試一次。",
   "err.uninstallFailed": "移除失敗：{0}\n如果遊戲正在執行，請關閉後再試一次。",
-  "err.requiresMissing": "在附加元件目錄中找不到 {0} 所需的模組 {1}。",
+  "err.requiresMissing": "{0} 需要 {1}。請先從附加元件目錄或 addons 資料夾（從檔案新增）加入 {1}。",
   "err.configMissing": "還沒有設定檔，此模組也沒有設定說明（.lxconfig）。啟動一次遊戲即可產生。",
   "err.configRead": "無法讀取設定檔：{0}",
   "err.configInvalid": "有格式或範圍不正確的值。",
@@ -173,5 +157,10 @@
   "err.catalogUrl": "請輸入以 https:// 開頭的目錄位址。",
   "err.settingsSave": "無法儲存設定：{0}",
   "err.updateFailed": "更新失敗：{0}",
-  "err.updateNoExe": "更新檔案中沒有 {0}。"
+  "err.updateNoExe": "更新檔案中沒有 {0}。",
+  "mods.addFile": "從檔案新增",
+  "mods.addFileHint": "新增你自己下載的模組檔案：LXIUM 附加元件 zip、ManosabaLoader 發佈 zip 或 .msmod",
+  "mods.fileFilter": "模組檔案",
+  "busy.addFiles": "正在讀取模組檔案…",
+  "err.unrecognized": "無法辨識以下檔案，未新增："
 }

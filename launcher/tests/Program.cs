@@ -348,6 +348,43 @@ finally
     Directory.Delete(repDir, true);
 }
 
+// addons/에 직접 넣은 외부 형식: ManosabaLoader 배포 zip(BepInEx 통째), .msmod
+var forDir = Directory.CreateTempSubdirectory("lxium-foreign").FullName;
+try
+{
+    var addonsIn = Path.Combine(forDir, "addons");
+    var cacheIn = Path.Combine(forDir, "cache");
+    Directory.CreateDirectory(addonsIn);
+    MakeZip(Path.Combine(addonsIn, "ManosabaLoader_KR_V2_1_0.zip"), new()
+    {
+        ["winhttp.dll"] = "x", ["BepInEx/core/BepInEx.Core.dll"] = "x", ["BepInEx/config/ManosabaLoader.cfg"] = "x",
+        ["BepInEx/plugins/ManosabaLoader/ManosabaLoader.dll"] = "not a real dll", ["BepInEx/plugins/ManosabaLoader/NVorbis.dll"] = "x",
+    });
+    File.WriteAllText(Path.Combine(addonsIn, "테스트 팩.msmod"), "encrypted");
+    File.WriteAllText(Path.Combine(addonsIn, "readme.txt"), "무시");
+    MakeZip(Path.Combine(addonsIn, "unknown.zip"), new() { ["a.txt"] = "x" });
+
+    var found = Addon.LoadAll(addonsIn, cacheIn).ToDictionary(a => a.Manifest.Id.StartsWith("msmod.") ? "msmod" : a.Manifest.Id);
+    Check(found.Count == 2 && found["ManosabaLoader"].Manifest is { Version: "2.1.0", Game.SteamAppId: 3101040, Variants.Count: 1 }
+          && found["msmod"].Manifest is { Name: "테스트 팩", Requires: ["ManosabaLoader"], Tags: ["msmod"] }, "ManosabaLoader zip·.msmod 알아보기 (모르는 파일 무시)");
+    using (var z = ZipFile.OpenRead(found["ManosabaLoader"].ZipPath))
+        Check(z.Entries.Select(e => e.FullName).Order().SequenceEqual(["bepinex6/BepInEx/plugins/ManosabaLoader/ManosabaLoader.dll", "bepinex6/BepInEx/plugins/ManosabaLoader/NVorbis.dll", "lxium.json"]),
+              "ManosabaLoader는 플러그인 폴더만 (BepInEx·설정 제외)");
+    Check(Addon.LoadAll(addonsIn, cacheIn).Count == 2 && Directory.EnumerateFiles(Path.Combine(cacheIn, "converted"), "*.zip").Count() == 2, "바꾼 zip 캐시 재사용");
+    Check(Addon.TryRead(Path.Combine(addonsIn, "unknown.zip"), cacheIn) is null && Game.Build(found.Values, [], []) is [{ Key: "3101040", Packages.Count: 2 }], "모르는 zip 거부, 마녀재판으로 묶기");
+
+    var gameDir = Path.Combine(forDir, "game");
+    Directory.CreateDirectory(gameDir);
+    Installer.Install(found["msmod"], "bepinex6", gameDir);
+    Check(File.Exists(Path.Combine(gameDir, "ManosabaMod", "테스트 팩.msmod")), ".msmod는 ManosabaMod/에 설치");
+    Installer.Uninstall(found["msmod"], gameDir);
+    Check(!Directory.Exists(Path.Combine(gameDir, "ManosabaMod")), ".msmod 제거");
+}
+finally
+{
+    Directory.Delete(forDir, true);
+}
+
 // 실제 배포처에서 로더 받기 (네트워크 필요): dotnet run --project launcher/tests -- --net
 if (args.Contains("--net"))
 {

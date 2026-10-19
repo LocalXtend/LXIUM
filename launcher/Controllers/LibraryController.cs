@@ -42,7 +42,7 @@ public sealed class LibraryController(MainWindow view, AppSettings settings)
     /// <summary>받아 둔 애드온이 바뀐 뒤(추가·업데이트) 목록을 다시 만들고, 보던 게임을 새 객체로 바꿉니다.</summary>
     void Rebuild()
     {
-        games = Game.Build(Addon.LoadAll(AddonsDir), remote, libraries);
+        games = Game.Build(Addon.LoadAll(AddonsDir, CacheDir), remote, libraries);
         if (current is not null) current = games.FirstOrDefault(g => g.Key == current.Key);
     }
 
@@ -322,6 +322,31 @@ public sealed class LibraryController(MainWindow view, AppSettings settings)
         if ((game ?? current)?.Info.SteamAppId is int id)
             Process.Start(new ProcessStartInfo($"steam://rungameid/{id}") { UseShellExecute = true });
         else view.Alert(Loc.T("game.noAppId"));
+    }
+
+    /// <summary>
+    /// 모드 패널 "파일에서 추가": 고른 파일(LXIUM zip, ManosabaLoader zip, .msmod)을 addons/에 복사합니다.
+    /// 알아보지 못한 파일은 복사하지 않고 알립니다. 다른 게임의 모드여도 그 게임 쪽에 나타납니다.
+    /// </summary>
+    public async Task AddFilesAsync(IReadOnlyList<string> files)
+    {
+        var rejected = new List<string>();
+        using (view.StartBusy(Loc.T("busy.addFiles")))
+        {
+            await Task.Run(() =>
+            {
+                Directory.CreateDirectory(AddonsDir);
+                foreach (var file in files)
+                {
+                    if (Addon.TryRead(file, CacheDir) is null) { rejected.Add(Path.GetFileName(file)); continue; }
+                    var dest = Path.Combine(AddonsDir, Path.GetFileName(file));
+                    if (!string.Equals(Path.GetFullPath(file), Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase)) File.Copy(file, dest, true);
+                }
+                Rebuild();
+            });
+        }
+        if (rejected.Count > 0) view.Alert(Loc.T("err.unrecognized") + "\n" + string.Join("\n", rejected));
+        Refresh();
     }
 
     public void OpenFolder()

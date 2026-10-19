@@ -75,6 +75,8 @@
     <DockPanel>
         <DockPanel DockPanel.Dock="Top" Margin="0,4,0,14">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button Style="{StaticResource Ghost}" Tag="{StaticResource IconPlus}" Content="{l:T mods.addFile}" ContentTemplate="{StaticResource IconText}"
+                        ToolTip="{l:T mods.addFileHint}" Click="AddFile_Click" Margin="0,0,8,0"/>
                 <Button Style="{StaticResource Ghost}" Tag="{StaticResource IconSettings}" Content="{l:T zone.settings}" ContentTemplate="{StaticResource IconText}"
                         Click="GameSettings_Click"/>
             </StackPanel>
